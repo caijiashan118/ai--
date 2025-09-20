@@ -1020,9 +1020,65 @@ def export_excel(table_type):
             data = [p.to_dict() for p in projects]
             filename = '项目基本信息表.xlsx'
         elif table_type == 'funding':
+            print(f"调试信息 - 开始处理资金安排表导出")
             arrangements = FundingArrangement.query.all()
+            print(f"调试信息 - 查询到 {len(arrangements)} 条资金安排记录")
             data = [a.to_dict() for a in arrangements]
+            print(f"调试信息 - 转换为字典后 {len(data)} 条记录")
             filename = '项目资金安排表.xlsx'
+            
+            # 创建DataFrame
+            df = pd.DataFrame(data)
+            
+            # 列名映射
+            column_mapping = {
+                'project_name': '项目名称',
+                'project_code': '项目编码（可研）',
+                'construction_unit': '建设单位',
+                'supervisor_dept': '项目主管部门',
+                'arrangement_amount': '安排金额(万元)',
+                'funding_source': '资金来源',
+                'funding_nature': '资金性质',
+                'budget_doc_no': '财预文号',
+                'arrangement_year': '安排年度',
+                'superior_doc_no': '上级资金文号',
+                'handler': '经办人',
+                'handling_office': '业务处',
+                'remarks': '备注'
+            }
+            
+            # 应用列名映射
+            existing_mapping = {k: v for k, v in column_mapping.items() if k in df.columns}
+            df = df.rename(columns=existing_mapping)
+            
+            # 创建Excel
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                df.to_excel(writer, index=False, sheet_name='项目资金安排表')
+                
+                # 设置列宽
+                worksheet = writer.sheets['项目资金安排表']
+                for column in worksheet.columns:
+                    max_length = 0
+                    column_letter = column[0].column_letter
+                    for cell in column:
+                        try:
+                            if len(str(cell.value)) > max_length:
+                                max_length = len(str(cell.value))
+                        except:
+                            pass
+                    adjusted_width = min(max_length + 2, 50)
+                    worksheet.column_dimensions[column_letter].width = adjusted_width
+            
+            output.seek(0)
+            
+            # 返回文件
+            return send_file(
+                output, 
+                download_name=filename,
+                as_attachment=True,
+                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
         elif table_type == 'summary':
             query = db.session.query(
                 FundingArrangement,
@@ -1085,28 +1141,6 @@ def export_excel(table_type):
                 'project_status', 'approval_date', 'start_date', 'end_date', 'budget_code',
                 'budget_project_name', 'handling_office', 'remarks'
             ]
-        elif table_type == 'funding':
-            column_mapping = {
-                'project_name': '项目名称',
-                'project_code': '项目编码（可研）',
-                'construction_unit': '建设单位',
-                'supervisor_dept': '项目主管部门',
-                'arrangement_amount': '安排金额(万元)',
-                'funding_source': '资金来源',
-                'funding_nature': '资金性质',
-                'budget_doc_no': '财预文号',
-                'arrangement_year': '安排年度',
-                'superior_doc_no': '上级资金文号',
-                'handler': '经办人',
-                'handling_office': '业务处',
-                'remarks': '备注'
-            }
-            # 定义列顺序（与前端表格顺序一致）
-            column_order = [
-                'project_name', 'project_code', 'construction_unit', 'supervisor_dept',
-                'arrangement_amount', 'funding_source', 'funding_nature', 'budget_doc_no',
-                'arrangement_year', 'superior_doc_no', 'handler', 'handling_office', 'remarks'
-            ]
         else:
             column_mapping = {}
         
@@ -1115,12 +1149,23 @@ def export_excel(table_type):
             # 只映射DataFrame中实际存在的列
             existing_mapping = {k: v for k, v in column_mapping.items() if k in df.columns}
             df = df.rename(columns=existing_mapping)
+            # 清理列名中的多余空格
+            df.columns = df.columns.str.strip()
         
         # 应用列顺序（与前端表格顺序一致）
         if table_type in ['project_info', 'funding'] and 'column_order' in locals():
-            # 只保留DataFrame中实际存在的列，并按照指定顺序排列
-            existing_columns = [col for col in column_order if col in df.columns]
-            df = df[existing_columns]
+            # 简化逻辑：直接使用映射后的列名，不进行复杂排序
+            if column_mapping:
+                # 对于已映射的列，保持映射后的列名顺序
+                # 只保留有映射的列，并按照映射的顺序排列
+                mapped_columns = [col for col in df.columns if col in column_mapping.values()]
+                if mapped_columns:
+                    df = df[mapped_columns]
+            else:
+                # 如果没有列名映射，直接使用原始列名
+                existing_columns = [col for col in column_order if col in df.columns]
+                if existing_columns:
+                    df = df[existing_columns]
         
         # 创建BytesIO对象
         output = BytesIO()
@@ -1165,10 +1210,12 @@ def export_filtered_data():
         if table_type == 'summary':
             # 使用新的项目总表
             query = ProjectSummary.query
+            print(f"API筛选前查询数量: {query.count()}")
             
             # 应用筛选条件
             filtered_query = apply_filters_to_summary_query(query, filters)
             results = filtered_query.all()
+            print(f"API筛选后结果数量: {len(results)}")
             
             # 转换为DataFrame
             summary_data = [result.to_dict() for result in results]
@@ -1337,6 +1384,8 @@ def apply_filters_to_summary_query(query, filters):
     if not filters:
         return query
     
+    print(f"应用筛选条件到项目总表: {filters}")
+    
     # 字段映射：列索引 -> 数据库字段
     field_mapping = {
         2: ProjectSummary.construction_unit,      # 建设单位
@@ -1351,10 +1400,22 @@ def apply_filters_to_summary_query(query, filters):
         20: ProjectSummary.project_type           # 项目类型
     }
     
+    # 添加调试信息
+    print(f"字段映射: {field_mapping}")
+    print(f"筛选条件键: {list(filters.keys())}")
+    
     # 应用筛选条件
     for column_index, values in filters.items():
-        if column_index in field_mapping and values:
-            field = field_mapping[column_index]
+        # 将字符串键转换为整数
+        try:
+            col_idx = int(column_index)
+        except (ValueError, TypeError):
+            print(f"跳过无效的列索引: {column_index}")
+            continue
+            
+        if col_idx in field_mapping and values:
+            field = field_mapping[col_idx]
+            print(f"应用筛选条件: 列{col_idx} = {values}")
             if isinstance(values, list):
                 # 多选条件：使用IN操作符
                 query = query.filter(field.in_(values))
