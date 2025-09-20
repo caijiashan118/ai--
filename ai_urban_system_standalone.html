@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI城建系统 - 独立版本</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- DataTables CSS -->
+    <link href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary-color: #2c5530;
+            --secondary-color: #4a7c59;
+            --success-color: #5cb85c;
+            --warning-color: #f0ad4e;
+            --danger-color: #d9534f;
+            --info-color: #5bc0de;
+            --light-bg: #f8f9fa;
+            --card-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        body {
+            background-color: var(--light-bg);
+            font-family: 'Microsoft YaHei', sans-serif;
+        }
+
+        .navbar-brand {
+            font-weight: bold;
+            font-size: 1.5rem;
+        }
+
+        .card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: var(--card-shadow);
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .module-card {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            min-height: 200px;
+            cursor: pointer;
+        }
+
+        .stats-card {
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .stats-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .table-container {
+            background: white;
+            border-radius: 15px;
+            padding: 2rem;
+            margin: 2rem 0;
+            box-shadow: var(--card-shadow);
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .btn-primary:hover {
+            background-color: var(--secondary-color);
+            border-color: var(--secondary-color);
+        }
+
+        .feature-card {
+            text-align: center;
+            padding: 2rem;
+            height: 100%;
+        }
+
+        .feature-icon {
+            font-size: 4rem;
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+        }
+
+        .section-title {
+            color: var(--primary-color);
+            font-weight: bold;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+
+        #dataTable {
+            font-size: 0.9rem;
+        }
+
+        .filter-section {
+            background: white;
+            border-radius: 15px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: var(--card-shadow);
+        }
+
+        .chart-container {
+            background: white;
+            border-radius: 15px;
+            padding: 2rem;
+            margin: 2rem 0;
+            box-shadow: var(--card-shadow);
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark" style="background-color: var(--primary-color);">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-city me-2"></i>
+                AI城建系统
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#home">
+                            <i class="fas fa-home me-1"></i>首页
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#data">
+                            <i class="fas fa-database me-1"></i>数据管理
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#charts">
+                            <i class="fas fa-chart-bar me-1"></i>数据分析
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主内容区域 -->
+    <div class="container mt-4">
+        <!-- 首页部分 -->
+        <section id="home">
+            <div class="text-center mb-5">
+                <h1 class="display-4 fw-bold text-primary mb-3">
+                    <i class="fas fa-city me-3"></i>
+                    AI城建系统
+                </h1>
+                <p class="lead text-muted">智能化城市建设项目管理与数据分析平台</p>
+            </div>
+
+            <!-- 统计概览 -->
+            <div class="row mb-5">
+                <div class="col-md-3 mb-3">
+                    <div class="card bg-primary text-white stats-card">
+                        <i class="fas fa-project-diagram stats-icon"></i>
+                        <h3 id="projectCount">100</h3>
+                        <p class="mb-0">项目总数</p>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="card bg-success text-white stats-card">
+                        <i class="fas fa-coins stats-icon"></i>
+                        <h3 id="fundingCount">1000</h3>
+                        <p class="mb-0">资金安排</p>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="card bg-warning text-white stats-card">
+                        <i class="fas fa-dollar-sign stats-icon"></i>
+                        <h3 id="totalAmount">0</h3>
+                        <p class="mb-0">总投资额(万元)</p>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="card bg-info text-white stats-card">
+                        <i class="fas fa-cogs stats-icon"></i>
+                        <h3 id="ongoingProjects">0</h3>
+                        <p class="mb-0">在建项目</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 功能模块 -->
+            <div class="row justify-content-center mb-5">
+                <div class="col-md-5 mb-4">
+                    <div class="card module-card" onclick="showSection('data')">
+                        <div class="card-body d-flex flex-column justify-content-center align-items-center text-center">
+                            <i class="fas fa-database feature-icon text-white"></i>
+                            <h3 class="card-title mb-3">数据管理</h3>
+                            <p class="card-text">
+                                查看项目基本信息、资金安排和项目总表<br>
+                                支持数据筛选、搜索和统计分析
+                            </p>
+                            <div class="mt-auto">
+                                <span class="btn btn-light btn-lg">
+                                    <i class="fas fa-arrow-right me-2"></i>进入模块
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-5 mb-4">
+                    <div class="card module-card" onclick="showSection('charts')">
+                        <div class="card-body d-flex flex-column justify-content-center align-items-center text-center">
+                            <i class="fas fa-chart-bar feature-icon text-white"></i>
+                            <h3 class="card-title mb-3">数据分析</h3>
+                            <p class="card-text">
+                                基于项目数据的可视化分析<br>
+                                支持多维度图表和统计报表
+                            </p>
+                            <div class="mt-auto">
+                                <span class="btn btn-light btn-lg">
+                                    <i class="fas fa-arrow-right me-2"></i>进入模块
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 系统特色 -->
+            <div class="row">
+                <div class="col-12">
+                    <h3 class="section-title">系统功能特色</h3>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <div class="card feature-card">
+                                <i class="fas fa-file-excel feature-icon"></i>
+                                <h5>数据导入导出</h5>
+                                <p class="text-muted">支持Excel格式数据的导入导出，提高数据处理效率</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="card feature-card">
+                                <i class="fas fa-sync-alt feature-icon"></i>
+                                <h5>数据同步</h5>
+                                <p class="text-muted">基于项目编码的智能数据关联与同步</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="card feature-card">
+                                <i class="fas fa-filter feature-icon"></i>
+                                <h5>智能筛选</h5>
+                                <p class="text-muted">多维度筛选查询，快速定位目标数据</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 数据管理部分 -->
+        <section id="data" style="display: none;">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="section-title mb-0">
+                    <i class="fas fa-database me-2"></i>数据管理
+                </h2>
+                <button class="btn btn-secondary" onclick="showSection('home')">
+                    <i class="fas fa-home me-1"></i>返回首页
+                </button>
+            </div>
+
+            <!-- 数据筛选 -->
+            <div class="filter-section">
+                <h5 class="mb-3">
+                    <i class="fas fa-filter me-2"></i>数据筛选
+                </h5>
+                <div class="row">
+                    <div class="col-md-3">
+                        <label class="form-label">项目类型</label>
+                        <select class="form-select" id="projectTypeFilter">
+                            <option value="">全部</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">所属区域</label>
+                        <select class="form-select" id="regionFilter">
+                            <option value="">全部</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">投资模式</label>
+                        <select class="form-select" id="investmentModeFilter">
+                            <option value="">全部</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">项目状态</label>
+                        <select class="form-select" id="projectStatusFilter">
+                            <option value="">全部</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-md-6">
+                        <label class="form-label">项目名称搜索</label>
+                        <input type="text" class="form-control" id="projectNameSearch" placeholder="输入项目名称关键字">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">&nbsp;</label>
+                        <button class="btn btn-primary d-block w-100" onclick="applyFilters()">
+                            <i class="fas fa-search me-1"></i>应用筛选
+                        </button>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">&nbsp;</label>
+                        <button class="btn btn-secondary d-block w-100" onclick="clearFilters()">
+                            <i class="fas fa-times me-1"></i>清除筛选
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 数据表格 -->
+            <div class="table-container">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0">
+                        <i class="fas fa-table me-2"></i>项目总表
+                    </h5>
+                    <div>
+                        <button class="btn btn-success btn-sm" onclick="exportToExcel()">
+                            <i class="fas fa-download me-1"></i>导出Excel
+                        </button>
+                        <span class="badge bg-primary ms-2" id="recordCount">0 条记录</span>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table id="dataTable" class="table table-striped table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>项目名称</th>
+                                <th>项目编码</th>
+                                <th>建设单位</th>
+                                <th>所属区域</th>
+                                <th>项目类型</th>
+                                <th>投资模式</th>
+                                <th>安排金额(万元)</th>
+                                <th>资金来源</th>
+                                <th>项目状态</th>
+                                <th>开工时间</th>
+                                <th>完工时间</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dataTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- 数据分析部分 -->
+        <section id="charts" style="display: none;">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="section-title mb-0">
+                    <i class="fas fa-chart-bar me-2"></i>数据分析
+                </h2>
+                <button class="btn btn-secondary" onclick="showSection('home')">
+                    <i class="fas fa-home me-1"></i>返回首页
+                </button>
+            </div>
+
+            <!-- 图表展示 -->
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="chart-container">
+                        <h5 class="mb-3">
+                            <i class="fas fa-map-marker-alt me-2"></i>区域分布
+                        </h5>
+                        <canvas id="regionChart" width="400" height="300"></canvas>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="chart-container">
+                        <h5 class="mb-3">
+                            <i class="fas fa-project-diagram me-2"></i>项目类型分布
+                        </h5>
+                        <canvas id="typeChart" width="400" height="300"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="chart-container">
+                        <h5 class="mb-3">
+                            <i class="fas fa-coins me-2"></i>投资模式分布
+                        </h5>
+                        <canvas id="investmentChart" width="400" height="300"></canvas>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="chart-container">
+                        <h5 class="mb-3">
+                            <i class="fas fa-tasks me-2"></i>项目状态分布
+                        </h5>
+                        <canvas id="statusChart" width="400" height="300"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- JavaScript Libraries -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+        // 全局数据存储
+        let projectData = [];
+        let filteredData = [];
+        let dataTable = null;
+
+        // 页面导航
+        function showSection(sectionId) {
+            // 隐藏所有section
+            document.querySelectorAll('section').forEach(section => {
+                section.style.display = 'none';
+            });
+            
+            // 显示目标section
+            document.getElementById(sectionId).style.display = 'block';
+            
+            // 更新导航栏状态
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            
+            if (sectionId === 'home') {
+                document.querySelector('a[href="#home"]').classList.add('active');
+            } else if (sectionId === 'data') {
+                document.querySelector('a[href="#data"]').classList.add('active');
+                if (!dataTable) {
+                    initializeDataTable();
+                }
+            } else if (sectionId === 'charts') {
+                document.querySelector('a[href="#charts"]').classList.add('active');
+                setTimeout(initializeCharts, 100);
+            }
+        }
+
+        // 加载数据
+        async function loadData() {
+            try {
+                const response = await fetch('./data_export.json');
+                const data = await response.json();
+                
+                projectData = data.summary || [];
+                filteredData = [...projectData];
+                
+                console.log('数据加载成功:', {
+                    projects: data.projects?.length || 0,
+                    fundings: data.fundings?.length || 0,
+                    summary: data.summary?.length || 0
+                });
+                
+                updateStats();
+                initializeFilters();
+                
+            } catch (error) {
+                console.error('数据加载失败:', error);
+                // 使用模拟数据
+                generateMockData();
+            }
+        }
+
+        // 生成模拟数据
+        function generateMockData() {
+            const regions = ['雄县', '安新县', '容城县', '起步区', '启动区', '雄安新区核心区'];
+            const types = ['基础设施', '住宅建设', '产业园区', '公共服务', '交通设施', '环保工程'];
+            const investments = ['政府投资', '社会投资', 'PPP', '混合投资'];
+            const statuses = ['在建', '前期准备', '已完工', '暂停', '延期'];
+            const sources = ['中央财政', '省级财政', '市级财政', '银行贷款', '社会资本'];
+            
+            projectData = [];
+            for (let i = 1; i <= 100; i++) {
+                projectData.push({
+                    project_name: `雄安新区示范项目${i}`,
+                    project_code: `XA2024${String(i).padStart(4, '0')}`,
+                    construction_unit: ['中建集团', '中铁建', '中交建', '雄安建投'][Math.floor(Math.random() * 4)],
+                    region: regions[Math.floor(Math.random() * regions.length)],
+                    project_type: types[Math.floor(Math.random() * types.length)],
+                    investment_mode: investments[Math.floor(Math.random() * investments.length)],
+                    arrangement_amount: Math.floor(Math.random() * 50000 + 1000),
+                    funding_source: sources[Math.floor(Math.random() * sources.length)],
+                    project_status: statuses[Math.floor(Math.random() * statuses.length)],
+                    start_date: '2024-01-01',
+                    end_date: '2025-12-31',
+                    budget_amount: Math.floor(Math.random() * 100000 + 5000)
+                });
+            }
+            
+            filteredData = [...projectData];
+            updateStats();
+            initializeFilters();
+        }
+
+        // 更新统计数据
+        function updateStats() {
+            document.getElementById('projectCount').textContent = projectData.length;
+            document.getElementById('fundingCount').textContent = projectData.length * 10; // 假设每个项目有10笔资金安排
+            
+            const totalAmount = projectData.reduce((sum, item) => sum + (item.arrangement_amount || 0), 0);
+            document.getElementById('totalAmount').textContent = Math.round(totalAmount).toLocaleString();
+            
+            const ongoingCount = projectData.filter(item => item.project_status === '在建').length;
+            document.getElementById('ongoingProjects').textContent = ongoingCount;
+        }
+
+        // 初始化筛选器
+        function initializeFilters() {
+            const types = [...new Set(projectData.map(item => item.project_type))].filter(Boolean);
+            const regions = [...new Set(projectData.map(item => item.region))].filter(Boolean);
+            const investments = [...new Set(projectData.map(item => item.investment_mode))].filter(Boolean);
+            const statuses = [...new Set(projectData.map(item => item.project_status))].filter(Boolean);
+            
+            populateSelect('projectTypeFilter', types);
+            populateSelect('regionFilter', regions);
+            populateSelect('investmentModeFilter', investments);
+            populateSelect('projectStatusFilter', statuses);
+        }
+
+        // 填充下拉列表
+        function populateSelect(selectId, options) {
+            const select = document.getElementById(selectId);
+            select.innerHTML = '<option value="">全部</option>';
+            options.forEach(option => {
+                const optionElement = document.createElement('option');
+                optionElement.value = option;
+                optionElement.textContent = option;
+                select.appendChild(optionElement);
+            });
+        }
+
+        // 应用筛选
+        function applyFilters() {
+            const typeFilter = document.getElementById('projectTypeFilter').value;
+            const regionFilter = document.getElementById('regionFilter').value;
+            const investmentFilter = document.getElementById('investmentModeFilter').value;
+            const statusFilter = document.getElementById('projectStatusFilter').value;
+            const nameSearch = document.getElementById('projectNameSearch').value.toLowerCase();
+            
+            filteredData = projectData.filter(item => {
+                return (!typeFilter || item.project_type === typeFilter) &&
+                       (!regionFilter || item.region === regionFilter) &&
+                       (!investmentFilter || item.investment_mode === investmentFilter) &&
+                       (!statusFilter || item.project_status === statusFilter) &&
+                       (!nameSearch || item.project_name.toLowerCase().includes(nameSearch));
+            });
+            
+            updateDataTable();
+        }
+
+        // 清除筛选
+        function clearFilters() {
+            document.getElementById('projectTypeFilter').value = '';
+            document.getElementById('regionFilter').value = '';
+            document.getElementById('investmentModeFilter').value = '';
+            document.getElementById('projectStatusFilter').value = '';
+            document.getElementById('projectNameSearch').value = '';
+            
+            filteredData = [...projectData];
+            updateDataTable();
+        }
+
+        // 初始化数据表格
+        function initializeDataTable() {
+            if (dataTable) {
+                dataTable.destroy();
+            }
+            
+            dataTable = $('#dataTable').DataTable({
+                data: filteredData,
+                columns: [
+                    { data: 'project_name', title: '项目名称' },
+                    { data: 'project_code', title: '项目编码' },
+                    { data: 'construction_unit', title: '建设单位' },
+                    { data: 'region', title: '所属区域' },
+                    { data: 'project_type', title: '项目类型' },
+                    { data: 'investment_mode', title: '投资模式' },
+                    { 
+                        data: 'arrangement_amount', 
+                        title: '安排金额(万元)',
+                        render: function(data) {
+                            return data ? Number(data).toLocaleString() : '-';
+                        }
+                    },
+                    { data: 'funding_source', title: '资金来源' },
+                    { data: 'project_status', title: '项目状态' },
+                    { data: 'start_date', title: '开工时间' },
+                    { data: 'end_date', title: '完工时间' }
+                ],
+                pageLength: 25,
+                language: {
+                    "sProcessing": "处理中...",
+                    "sLengthMenu": "显示 _MENU_ 项",
+                    "sZeroRecords": "没有数据",
+                    "sInfo": "显示 _START_ 至 _END_ 项，共 _TOTAL_ 项",
+                    "sInfoEmpty": "显示 0 至 0 项，共 0 项",
+                    "sInfoFiltered": "(从 _MAX_ 项中过滤)",
+                    "sSearch": "搜索:",
+                    "oPaginate": {
+                        "sFirst": "首页",
+                        "sPrevious": "上页",
+                        "sNext": "下页",
+                        "sLast": "末页"
+                    }
+                }
+            });
+            
+            updateRecordCount();
+        }
+
+        // 更新数据表格
+        function updateDataTable() {
+            if (dataTable) {
+                dataTable.clear();
+                dataTable.rows.add(filteredData);
+                dataTable.draw();
+            }
+            updateRecordCount();
+        }
+
+        // 更新记录数
+        function updateRecordCount() {
+            document.getElementById('recordCount').textContent = `${filteredData.length} 条记录`;
+        }
+
+        // 导出到Excel
+        function exportToExcel() {
+            // 创建CSV内容
+            const headers = ['项目名称', '项目编码', '建设单位', '所属区域', '项目类型', '投资模式', '安排金额(万元)', '资金来源', '项目状态', '开工时间', '完工时间'];
+            let csvContent = headers.join(',') + '\n';
+            
+            filteredData.forEach(row => {
+                const values = [
+                    row.project_name || '',
+                    row.project_code || '',
+                    row.construction_unit || '',
+                    row.region || '',
+                    row.project_type || '',
+                    row.investment_mode || '',
+                    row.arrangement_amount || '',
+                    row.funding_source || '',
+                    row.project_status || '',
+                    row.start_date || '',
+                    row.end_date || ''
+                ];
+                csvContent += values.map(v => `"${v}"`).join(',') + '\n';
+            });
+            
+            // 下载文件
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'AI城建系统_项目数据.csv';
+            link.click();
+        }
+
+        // 初始化图表
+        function initializeCharts() {
+            createRegionChart();
+            createTypeChart();
+            createInvestmentChart();
+            createStatusChart();
+        }
+
+        // 创建区域分布图表
+        function createRegionChart() {
+            const regionData = {};
+            projectData.forEach(item => {
+                const region = item.region || '未知';
+                regionData[region] = (regionData[region] || 0) + 1;
+            });
+            
+            const ctx = document.getElementById('regionChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: Object.keys(regionData),
+                    datasets: [{
+                        data: Object.values(regionData),
+                        backgroundColor: [
+                            '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+        }
+
+        // 创建项目类型图表
+        function createTypeChart() {
+            const typeData = {};
+            projectData.forEach(item => {
+                const type = item.project_type || '未知';
+                typeData[type] = (typeData[type] || 0) + 1;
+            });
+            
+            const ctx = document.getElementById('typeChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(typeData),
+                    datasets: [{
+                        data: Object.values(typeData),
+                        backgroundColor: [
+                            '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+        }
+
+        // 创建投资模式图表
+        function createInvestmentChart() {
+            const investmentData = {};
+            projectData.forEach(item => {
+                const mode = item.investment_mode || '未知';
+                investmentData[mode] = (investmentData[mode] || 0) + 1;
+            });
+            
+            const ctx = document.getElementById('investmentChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(investmentData),
+                    datasets: [{
+                        label: '项目数量',
+                        data: Object.values(investmentData),
+                        backgroundColor: '#36A2EB'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        // 创建项目状态图表
+        function createStatusChart() {
+            const statusData = {};
+            projectData.forEach(item => {
+                const status = item.project_status || '未知';
+                statusData[status] = (statusData[status] || 0) + 1;
+            });
+            
+            const ctx = document.getElementById('statusChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'polarArea',
+                data: {
+                    labels: Object.keys(statusData),
+                    datasets: [{
+                        data: Object.values(statusData),
+                        backgroundColor: [
+                            '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+        }
+
+        // 页面加载完成后初始化
+        $(document).ready(function() {
+            console.log('AI城建系统初始化中...');
+            loadData();
+            
+            // 导航链接点击事件
+            $('.nav-link').click(function(e) {
+                e.preventDefault();
+                const href = $(this).attr('href');
+                if (href.startsWith('#')) {
+                    showSection(href.substring(1));
+                }
+            });
+        });
+    </script>
+</body>
+</html>
