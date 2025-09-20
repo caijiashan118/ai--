@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JavaScript执行测试</title>
+    <script src="https://cdn.staticfile.org/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdn.staticfile.org/plotly.js/2.27.0/plotly.min.js"></script>
+</head>
+<body>
+    <h1>JavaScript执行测试</h1>
+    <div id="testResults"></div>
+    <div id="testChart" style="height: 300px;"></div>
+    
+    <script>
+        console.log('开始JavaScript执行测试...');
+        
+        // 测试jQuery
+        console.log('jQuery版本:', $.fn.jquery);
+        
+        // 测试Plotly
+        console.log('Plotly版本:', Plotly.version);
+        
+        // 测试API调用
+        async function testAPI() {
+            try {
+                console.log('开始API测试...');
+                const response = await fetch('/api/charts_data');
+                console.log('API响应状态:', response.status);
+                
+                const data = await response.json();
+                console.log('API数据:', data);
+                
+                if (data.success && data.data) {
+                    console.log('✅ API调用成功');
+                    document.getElementById('testResults').innerHTML = '<p style="color: green;">✅ API调用成功</p>';
+                    
+                    // 测试图表生成
+                    const statusCounts = {};
+                    data.data.forEach(item => {
+                        const status = item.project_status || '未知';
+                        statusCounts[status] = (statusCounts[status] || 0) + 1;
+                    });
+                    
+                    const chartData = [{
+                        values: Object.values(statusCounts),
+                        labels: Object.keys(statusCounts),
+                        type: 'pie'
+                    }];
+                    
+                    const layout = {
+                        title: '项目状态分布'
+                    };
+                    
+                    Plotly.newPlot('testChart', chartData, layout);
+                    console.log('✅ 图表生成成功');
+                    document.getElementById('testResults').innerHTML += '<p style="color: green;">✅ 图表生成成功</p>';
+                    
+                } else {
+                    console.log('❌ API数据格式错误');
+                    document.getElementById('testResults').innerHTML = '<p style="color: red;">❌ API数据格式错误</p>';
+                }
+            } catch (error) {
+                console.error('❌ 测试失败:', error);
+                document.getElementById('testResults').innerHTML = '<p style="color: red;">❌ 测试失败: ' + error.message + '</p>';
+            }
+        }
+        
+        // 使用jQuery的ready函数
+        $(document).ready(function() {
+            console.log('jQuery ready函数执行');
+            testAPI();
+        });
+        
+        // 也使用原生DOMContentLoaded
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOMContentLoaded事件触发');
+        });
+    </script>
+</body>
+</html>
+

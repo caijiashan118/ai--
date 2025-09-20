@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}在线AI城建系统{% endblock %}</title>
+    
+    <!-- 资源预加载和DNS预解析 -->
+    <link rel="preconnect" href="https://cdn.staticfile.org">
+    <link rel="preconnect" href="https://unpkg.com">
+    <link rel="dns-prefetch" href="https://cdn.staticfile.org">
+    <link rel="dns-prefetch" href="https://unpkg.com">
+    
+    <!-- 预加载关键资源 -->
+    <link rel="preload" href="https://cdn.staticfile.org/jquery/3.6.0/jquery.min.js" as="script">
+    <link rel="preload" href="https://cdn.staticfile.org/twitter-bootstrap/5.1.3/css/bootstrap.min.css" as="style">
+    
+    <!-- Bootstrap CSS (国内镜像) -->
+    <link href="https://cdn.staticfile.org/twitter-bootstrap/5.1.3/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome (国内镜像) -->
+    <link href="https://cdn.staticfile.org/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- DataTables CSS (国内镜像) -->
+    <link href="https://unpkg.com/datatables.net-bs5@1.13.4/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+    
+    <style>
+        /* 护眼色彩主题 - 基于科学护眼原理 */
+        :root {
+            /* 护眼背景色系 - 浅绿灰色调，减少蓝光刺激 */
+            --eye-care-bg: #f0f4f0;           /* 主背景 - 护眼浅绿灰 */
+            --eye-care-bg-secondary: #f5f7f5; /* 次要背景 */
+            --eye-care-card: #f8faf8;         /* 卡片背景 - 更浅的护眼色 */
+            --eye-care-table: #fcfefc;        /* 表格背景 - 接近白色的护眼色 */
+            --eye-care-input: #fafcfa;        /* 输入框背景 - 浅护眼色 */
+            --eye-care-border: #e0e6e0;       /* 边框颜色 - 护眼边框 */
+            --eye-care-border-light: #e8ede8;  /* 浅边框 */
+            
+            /* 护眼文字色系 - 深绿灰色调，降低对比度 */
+            --eye-care-text: #2a3a2a;         /* 主文字颜色 - 深绿灰 */
+            --eye-care-text-secondary: #3a4a3a; /* 次要文字 */
+            --eye-care-text-muted: #5a6a5a;   /* 弱化文字颜色 */
+            --eye-care-text-light: #7a8a7a;   /* 浅色文字 */
+            
+            /* 护眼强调色系 - 温和的绿色调 */
+            --eye-care-primary: #4a6b4a;      /* 主色调 - 温和绿色 */
+            --eye-care-primary-light: #5a7b5a; /* 浅主色调 */
+            --eye-care-primary-dark: #3a5a3a;  /* 深主色调 */
+            --eye-care-accent: #6b8a6b;       /* 强调色 */
+            
+            /* 护眼状态色系 */
+            --eye-care-success: #4a6b4a;      /* 成功色 - 绿色 */
+            --eye-care-warning: #8a6b3a;      /* 警告色 - 温和橙色 */
+            --eye-care-danger: #8a4a4a;       /* 危险色 - 温和红色 */
+            --eye-care-info: #4a6b8a;         /* 信息色 - 温和蓝色 */
+        }
+
+        /* 全局护眼样式 */
+        body {
+            background: var(--eye-care-bg) !important;
+            min-height: 100vh;
+            font-family: 'Microsoft YaHei', 'PingFang SC', 'Helvetica Neue', sans-serif;
+        }
+        
+
+        /* 主容器护眼优化 */
+        .main-container {
+            background: var(--eye-care-card) !important;
+            border-radius: 15px;
+            box-shadow: 0 8px 25px rgba(42, 58, 42, 0.08);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--eye-care-border);
+        }
+
+        /* 导航栏护眼优化 */
+        .navbar-custom {
+            background: linear-gradient(135deg, var(--eye-care-primary) 0%, var(--eye-care-primary-light) 100%);
+            border: none;
+            box-shadow: 0 2px 8px rgba(42, 58, 42, 0.1);
+        }
+
+        .navbar-custom .navbar-brand,
+        .navbar-custom .nav-link {
+            color: #f8faf8 !important;
+        }
+
+        .navbar-custom .nav-link:hover {
+            color: #e8f0e8 !important;
+        }
+
+        /* 模块卡片护眼优化 */
+        .module-card {
+            transition: all 0.3s ease;
+            border: none;
+            border-radius: 15px;
+            background: linear-gradient(135deg, var(--eye-care-primary) 0%, var(--eye-care-accent) 100%);
+            color: #f8faf8;
+            min-height: 200px;
+            box-shadow: 0 4px 15px rgba(42, 58, 42, 0.1);
+        }
+
+        .module-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 15px 35px rgba(42, 58, 42, 0.15);
+        }
+
+        .module-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            color: #f0f4f0;
+        }
+
+        /* 按钮护眼优化 */
+        .btn-custom {
+            background: linear-gradient(45deg, var(--eye-care-success), var(--eye-care-primary-light));
+            border: none;
+            border-radius: 25px;
+            padding: 10px 30px;
+            color: white;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(42, 58, 42, 0.2);
+        }
+
+        .btn-custom:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(42, 58, 42, 0.3);
+            color: white;
+        }
+
+        /* 表格容器护眼优化 */
+        .table-container {
+            background: var(--eye-care-table) !important;
+            border-radius: 12px;
+            padding: 25px;
+            margin: 20px 0;
+            box-shadow: 0 4px 12px rgba(42, 58, 42, 0.06);
+            border: 1px solid var(--eye-care-border);
+        }
+
+        /* Bootstrap组件护眼优化 */
+        .card {
+            background-color: var(--eye-care-card) !important;
+            border: 1px solid var(--eye-care-border) !important;
+            color: var(--eye-care-text) !important;
+        }
+
+        .card-header {
+            background-color: var(--eye-care-input) !important;
+            border-bottom: 1px solid var(--eye-care-border) !important;
+            color: var(--eye-care-text) !important;
+        }
+
+        .form-control {
+            background-color: var(--eye-care-input) !important;
+            border: 1px solid var(--eye-care-border) !important;
+            color: var(--eye-care-text) !important;
+        }
+
+        .form-control:focus {
+            background-color: var(--eye-care-table) !important;
+            border-color: var(--eye-care-primary) !important;
+            box-shadow: 0 0 0 0.2rem rgba(74, 107, 74, 0.25) !important;
+        }
+
+        /* 下拉菜单护眼优化 */
+        .dropdown-menu {
+            background-color: var(--eye-care-card) !important;
+            border: 1px solid var(--eye-care-border) !important;
+        }
+
+        .dropdown-item {
+            color: var(--eye-care-text) !important;
+        }
+
+        .dropdown-item:hover {
+            background-color: var(--eye-care-input) !important;
+            color: var(--eye-care-text) !important;
+        }
+
+        /* 模态框护眼优化 */
+        .modal-content {
+            background-color: var(--eye-care-card) !important;
+            border: 1px solid var(--eye-care-border) !important;
+        }
+
+        .modal-header {
+            background-color: var(--eye-care-input) !important;
+            border-bottom: 1px solid var(--eye-care-border) !important;
+        }
+
+        /* 警告框护眼优化 */
+        .alert {
+            border: 1px solid var(--eye-care-border) !important;
+        }
+
+        .alert-success {
+            background-color: rgba(74, 107, 74, 0.1) !important;
+            color: var(--eye-care-success) !important;
+            border-color: var(--eye-care-success) !important;
+        }
+
+        .alert-warning {
+            background-color: rgba(138, 107, 58, 0.1) !important;
+            color: var(--eye-care-warning) !important;
+            border-color: var(--eye-care-warning) !important;
+        }
+
+        .alert-danger {
+            background-color: rgba(138, 74, 74, 0.1) !important;
+            color: var(--eye-care-danger) !important;
+            border-color: var(--eye-care-danger) !important;
+        }
+
+        .alert-info {
+            background-color: rgba(74, 107, 138, 0.1) !important;
+            color: var(--eye-care-info) !important;
+            border-color: var(--eye-care-info) !important;
+        }
+
+        /* 文本颜色优化 */
+        .text-primary { color: var(--eye-care-primary) !important; }
+        .text-secondary { color: var(--eye-care-text-secondary) !important; }
+        .text-muted { color: var(--eye-care-text-muted) !important; }
+        .text-success { color: var(--eye-care-success) !important; }
+        .text-warning { color: var(--eye-care-warning) !important; }
+        .text-danger { color: var(--eye-care-danger) !important; }
+        .text-info { color: var(--eye-care-info) !important; }
+
+        /* 背景颜色优化 */
+        .bg-primary { background-color: var(--eye-care-primary) !important; }
+        .bg-success { background-color: var(--eye-care-success) !important; }
+        .bg-warning { background-color: var(--eye-care-warning) !important; }
+        .bg-danger { background-color: var(--eye-care-danger) !important; }
+        .bg-info { background-color: var(--eye-care-info) !important; }
+
+        /* 护眼滚动条 */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--eye-care-bg-secondary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--eye-care-border);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--eye-care-text-muted);
+        }
+
+        /* 护眼选择文本 */
+        ::selection {
+            background-color: rgba(74, 107, 74, 0.2);
+            color: var(--eye-care-text);
+        }
+
+        /* 护眼焦点样式 */
+        *:focus {
+            outline: 2px solid var(--eye-care-primary);
+            outline-offset: 2px;
+        }
+
+        /* 护眼链接样式 */
+        a {
+            color: var(--eye-care-primary);
+            text-decoration: none;
+        }
+
+        a:hover {
+            color: var(--eye-care-primary-dark);
+            text-decoration: underline;
+        }
+
+        /* 护眼按钮样式 */
+        .btn-primary {
+            background-color: var(--eye-care-primary) !important;
+            border-color: var(--eye-care-primary) !important;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--eye-care-primary-dark) !important;
+            border-color: var(--eye-care-primary-dark) !important;
+        }
+
+        .btn-success {
+            background-color: var(--eye-care-success) !important;
+            border-color: var(--eye-care-success) !important;
+        }
+
+        .btn-warning {
+            background-color: var(--eye-care-warning) !important;
+            border-color: var(--eye-care-warning) !important;
+        }
+
+        .btn-danger {
+            background-color: var(--eye-care-danger) !important;
+            border-color: var(--eye-care-danger) !important;
+        }
+
+        .btn-info {
+            background-color: var(--eye-care-info) !important;
+            border-color: var(--eye-care-info) !important;
+        }
+
+        /* 护眼输入框样式 */
+        .input-group-text {
+            background-color: var(--eye-care-input) !important;
+            border-color: var(--eye-care-border) !important;
+            color: var(--eye-care-text) !important;
+        }
+
+        /* 护眼分页样式 */
+        .page-link {
+            background-color: var(--eye-care-card) !important;
+            border-color: var(--eye-care-border) !important;
+            color: var(--eye-care-text) !important;
+        }
+
+        .page-link:hover {
+            background-color: var(--eye-care-input) !important;
+            border-color: var(--eye-care-primary) !important;
+            color: var(--eye-care-primary) !important;
+        }
+
+        .page-item.active .page-link {
+            background-color: var(--eye-care-primary) !important;
+            border-color: var(--eye-care-primary) !important;
+        }
+
+        /* 护眼工具提示 */
+        .tooltip .tooltip-inner {
+            background-color: var(--eye-care-text) !important;
+            color: var(--eye-care-card) !important;
+        }
+
+        .tooltip.bs-tooltip-top .tooltip-arrow::before {
+            border-top-color: var(--eye-care-text) !important;
+        }
+
+        /* 护眼进度条 */
+        .progress {
+            background-color: var(--eye-care-input) !important;
+        }
+
+        .progress-bar {
+            background-color: var(--eye-care-primary) !important;
+        }
+
+        /* 护眼徽章 */
+        .badge {
+            background-color: var(--eye-care-primary) !important;
+            color: white !important;
+        }
+
+        /* 护眼列表组 */
+        .list-group-item {
+            background-color: var(--eye-care-card) !important;
+            border-color: var(--eye-care-border) !important;
+            color: var(--eye-care-text) !important;
+        }
+
+        .list-group-item:hover {
+            background-color: var(--eye-care-input) !important;
+        }
+
+        .list-group-item.active {
+            background-color: var(--eye-care-primary) !important;
+            border-color: var(--eye-care-primary) !important;
+        }
+    </style>
+    
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark navbar-custom mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-city me-2"></i>
+                在线AI城建系统
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">
+                            <i class="fas fa-home me-1"></i>首页
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/basic_data">
+                            <i class="fas fa-database me-1"></i>基础数据
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/smart_charts">
+                            <i class="fas fa-chart-bar me-1"></i>智能图表
+                        </a>
+                    </li>
+                    <li class="nav-item dropdown" id="userMenu" style="display: none;">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-user me-1"></i><span id="currentUsername">用户</span>
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="/user_management">
+                                <i class="fas fa-users-cog me-1"></i>用户管理
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="#" onclick="logout()">
+                                <i class="fas fa-sign-out-alt me-1"></i>退出登录
+                            </a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item" id="loginLink">
+                        <a class="nav-link" href="/login">
+                            <i class="fas fa-sign-in-alt me-1"></i>登录
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主要内容区域 -->
+    <div class="container">
+        <div class="main-container p-4">
+            {% block content %}{% endblock %}
+        </div>
+    </div>
+
+    <!-- JavaScript Libraries (国内镜像) - 优化加载顺序 -->
+    <script src="https://cdn.staticfile.org/jquery/3.6.0/jquery.min.js"></script>
+    <script>
+        // 确保jQuery加载完成后立即加载其他库
+        $(document).ready(function() {
+            // 动态加载Bootstrap
+            $.getScript('https://cdn.staticfile.org/twitter-bootstrap/5.1.3/js/bootstrap.bundle.min.js', function() {
+                // Bootstrap加载完成后加载DataTables
+                $.getScript('https://unpkg.com/datatables.net@1.13.4/js/jquery.dataTables.min.js', function() {
+                    // DataTables核心加载完成后加载Bootstrap5集成
+                    $.getScript('https://unpkg.com/datatables.net-bs5@1.13.4/js/dataTables.bootstrap5.min.js', function() {
+                        console.log('所有JavaScript库加载完成');
+                        // 触发自定义事件，通知其他脚本库已加载完成
+                        $(document).trigger('librariesLoaded');
+                    });
+                });
+            });
+        });
+    </script>
+    <!-- Plotly 移至需要页面按需加载 -->
+    
+    <!-- 全局认证管理 -->
+    <script>
+        // 检查用户登录状态
+        function checkAuthStatus() {
+            const userInfo = localStorage.getItem('user_info');
+            const authToken = localStorage.getItem('auth_token');
+            
+            if (userInfo && authToken) {
+                try {
+                    const user = JSON.parse(userInfo);
+                    showUserMenu(user);
+                } catch (e) {
+                    clearAuthData();
+                }
+            } else {
+                showLoginLink();
+            }
+        }
+        
+        // 显示用户菜单
+        function showUserMenu(user) {
+            document.getElementById('userMenu').style.display = 'block';
+            document.getElementById('loginLink').style.display = 'none';
+            document.getElementById('currentUsername').textContent = user.real_name || user.username;
+        }
+        
+        // 显示登录链接
+        function showLoginLink() {
+            document.getElementById('userMenu').style.display = 'none';
+            document.getElementById('loginLink').style.display = 'block';
+        }
+        
+        // 退出登录
+        function logout() {
+            const username = getCurrentUsername();
+            
+            // 发送退出请求
+            fetch('/api/auth/logout', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ username: username })
+            })
+            .then(response => response.json())
+            .then(data => {
+                clearAuthData();
+                alert('已退出登录');
+                window.location.href = '/login';
+            })
+            .catch(error => {
+                console.error('退出失败:', error);
+                clearAuthData();
+                window.location.href = '/login';
+            });
+        }
+        
+        // 清除认证数据
+        function clearAuthData() {
+            localStorage.removeItem('user_info');
+            localStorage.removeItem('user_roles');
+            localStorage.removeItem('user_permissions');
+            localStorage.removeItem('auth_token');
+            showLoginLink();
+        }
+        
+        // 获取当前用户名
+        function getCurrentUsername() {
+            try {
+                const userInfo = localStorage.getItem('user_info');
+                if (userInfo) {
+                    return JSON.parse(userInfo).username;
+                }
+            } catch (e) {
+                console.error('获取用户名失败:', e);
+            }
+            return null;
+        }
+        
+        // 检查用户权限
+        function hasPermission(permissionCode) {
+            try {
+                const permissions = localStorage.getItem('user_permissions');
+                if (permissions) {
+                    const permissionList = JSON.parse(permissions);
+                    return permissionList.includes(permissionCode);
+                }
+            } catch (e) {
+                console.error('检查权限失败:', e);
+            }
+            return false;
+        }
+        
+        // 页面加载时检查认证状态
+        document.addEventListener('DOMContentLoaded', function() {
+            checkAuthStatus();
+        });
+    </script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

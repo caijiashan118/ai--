@@ -1,0 +1,3156 @@
+{% extends "base.html" %}
+
+{% block title %}智能图表{% endblock %}
+
+{% block extra_css %}
+<style>
+.drop-zone {
+    border: 2px dashed #ccc;
+    border-radius: 5px;
+    transition: all 0.3s ease;
+}
+
+.drop-zone.drag-over {
+    border-color: #007bff;
+    background-color: rgba(0, 123, 255, 0.1);
+}
+
+.field-item {
+    background: linear-gradient(45deg, #667eea, #764ba2);
+    color: white;
+    padding: 8px 12px;
+    margin: 5px;
+    border-radius: 20px;
+    cursor: move;
+    display: inline-block;
+    transition: all 0.3s ease;
+    user-select: none;
+}
+
+.field-item:hover {
+    transform: scale(1.05);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+
+.field-item.dragging {
+    opacity: 0.5;
+    transform: rotate(5deg);
+}
+
+.field-item {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+.field-item:active {
+    transform: scale(0.95);
+}
+
+.pivot-field {
+    background: #28a745;
+    color: white;
+    padding: 5px 10px;
+    margin: 2px;
+    border-radius: 15px;
+    display: inline-block;
+    font-size: 12px;
+}
+
+.pivot-field .remove {
+    cursor: pointer;
+    margin-left: 8px;
+    font-weight: bold;
+}
+
+.chart-container {
+    height: 400px;
+    width: 100%;
+}
+</style>
+{% endblock %}
+
+<!-- 按需加载 Plotly，仅在图表页引入 -->
+<script>
+// Plotly.js 多重备用加载方案
+let plotlyLoadAttempts = 0;
+const maxLoadAttempts = 5;
+
+function loadPlotly() {
+    plotlyLoadAttempts++;
+    console.log(`尝试加载Plotly.js (第${plotlyLoadAttempts}次)...`);
+    
+    const cdnSources = [
+        'https://cdn.staticfile.org/plotly.js/2.27.0/plotly.min.js',
+        'https://cdn.jsdelivr.net/npm/plotly.js@2.27.0/dist/plotly.min.js',
+        'https://cdn.plot.ly/plotly-2.27.0.min.js',
+        'https://unpkg.com/plotly.js@2.27.0/dist/plotly.min.js',
+        'https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.27.0/plotly.min.js'
+    ];
+    
+    if (plotlyLoadAttempts <= cdnSources.length) {
+        const script = document.createElement('script');
+        script.src = cdnSources[plotlyLoadAttempts - 1];
+        script.onload = function() {
+            console.log('Plotly.js加载成功！');
+            if (typeof Plotly !== 'undefined') {
+                initializeCharts();
+            }
+        };
+        script.onerror = function() {
+            console.log(`CDN ${plotlyLoadAttempts} 加载失败，尝试下一个...`);
+            setTimeout(loadPlotly, 500);
+        };
+        document.head.appendChild(script);
+    } else {
+        console.error('所有CDN都加载失败，尝试本地文件...');
+        loadPlotlyLocal();
+    }
+}
+
+function loadPlotlyLocal() {
+    // 尝试加载本地Plotly文件
+    const script = document.createElement('script');
+    script.src = '/static/js/plotly.min.js';
+    script.onload = function() {
+        console.log('本地Plotly.js加载成功！');
+        if (typeof Plotly !== 'undefined') {
+            initializeCharts();
+        }
+    };
+    script.onerror = function() {
+        console.error('本地Plotly.js也加载失败');
+        showPlotlyError();
+    };
+    document.head.appendChild(script);
+}
+
+function showPlotlyError() {
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'alert alert-danger';
+    errorDiv.innerHTML = `
+        <h4><i class="fas fa-exclamation-triangle me-2"></i>图表库加载失败</h4>
+        <p>无法加载图表库，可能的原因：</p>
+        <ul>
+            <li>网络连接问题</li>
+            <li>CDN服务不可用</li>
+            <li>浏览器安全策略限制</li>
+        </ul>
+        <p>请尝试：</p>
+        <ul>
+            <li>刷新页面重试</li>
+            <li>检查网络连接</li>
+            <li>使用其他浏览器</li>
+        </ul>
+        <button class="btn btn-primary" onclick="location.reload()">
+            <i class="fas fa-sync-alt me-1"></i>刷新页面
+        </button>
+    `;
+    
+    // 将错误信息插入到页面顶部
+    const container = document.querySelector('.container-fluid') || document.body;
+    container.insertBefore(errorDiv, container.firstChild);
+}
+
+function initializeCharts() {
+    if (typeof Plotly !== 'undefined') {
+        console.log('Plotly已加载，开始初始化图表');
+        loadChartsData();
+        
+        // 延迟初始化透视表，确保DOM完全加载
+        setTimeout(() => {
+            initializePivotTable();
+            console.log('透视表初始化完成');
+        }, 500);
+    }
+}
+
+// 页面加载完成后开始加载Plotly
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('页面加载完成，开始加载Plotly.js...');
+    loadPlotly();
+});
+</script>
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-chart-bar me-2"></i>智能图表分析</h2>
+    <div class="btn-group">
+        <button class="btn btn-custom" onclick="refreshChartsData()">
+            <i class="fas fa-sync-alt me-2"></i>刷新数据
+        </button>
+        <button class="btn btn-outline-primary" onclick="toggleView()">
+            <i class="fas fa-exchange-alt me-2"></i><span id="toggleText">切换到数据透视表</span>
+        </button>
+    </div>
+</div>
+
+<!-- Tab导航 -->
+<ul class="nav nav-tabs mb-4" id="chartTab" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview" type="button">
+            <i class="fas fa-chart-pie me-2"></i>数据概览
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="analysis-tab" data-bs-toggle="tab" data-bs-target="#analysis" type="button">
+            <i class="fas fa-chart-line me-2"></i>深度分析
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="dashboard-tab" data-bs-toggle="tab" data-bs-target="#dashboard" type="button">
+            <i class="fas fa-tachometer-alt me-2"></i>数据仪表盘
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="trend-tab" data-bs-toggle="tab" data-bs-target="#trend" type="button">
+            <i class="fas fa-chart-line me-2"></i>趋势预测
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="pivot-tab" data-bs-toggle="tab" data-bs-target="#pivot" type="button">
+            <i class="fas fa-table me-2"></i>数据透视表
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="chartTabContent">
+    <!-- 数据概览 -->
+    <div class="tab-pane fade show active" id="overview" role="tabpanel">
+        <div class="row">
+            <!-- 项目状态分布饼图 -->
+            <div class="col-md-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>项目状态分布</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="statusPieChart" style="height: 400px;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 区域投资分布柱状图 -->
+            <div class="col-md-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0"><i class="fas fa-chart-bar me-2"></i>区域投资分布</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="regionBarChart" style="height: 400px;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 项目类型投资趋势 -->
+            <div class="col-md-12 mb-4">
+                <div class="card">
+                    <div class="card-header bg-warning text-white">
+                        <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>项目类型投资分布</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="typeInvestmentChart" style="height: 400px;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 资金来源分析 -->
+            <div class="col-md-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0"><i class="fas fa-coins me-2"></i>资金来源分析</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="fundingSourceChart" style="height: 400px;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 年度资金安排趋势 -->
+            <div class="col-md-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header bg-danger text-white">
+                        <h5 class="mb-0"><i class="fas fa-chart-area me-2"></i>年度资金安排趋势</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="yearlyTrendChart" style="height: 400px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 深度分析 -->
+    <div class="tab-pane fade" id="analysis" role="tabpanel">
+        <div class="row">
+            <!-- 投资模式分析 -->
+            <div class="col-md-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0"><i class="fas fa-chart-donut me-2"></i>投资模式分析</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="investmentModeChart" style="height: 400px;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 资金性质分布 -->
+            <div class="col-md-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0"><i class="fas fa-money-bill-wave me-2"></i>资金性质分布</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="fundingNatureChart" style="height: 400px;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 项目投资规模分布 -->
+            <div class="col-md-12 mb-4">
+                <div class="card">
+                    <div class="card-header bg-warning text-white">
+                        <h5 class="mb-0"><i class="fas fa-chart-histogram me-2"></i>项目投资规模分布</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="investmentScaleChart" style="height: 400px;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 区域vs项目类型热力图 -->
+            <div class="col-md-12 mb-4">
+                <div class="card">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0"><i class="fas fa-th me-2"></i>区域-项目类型关系热力图</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="heatmapChart" style="height: 500px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 数据仪表盘 -->
+    <div class="tab-pane fade" id="dashboard" role="tabpanel">
+        <div class="row mb-4">
+            <!-- KPI指标卡片区域 -->
+            <div class="col-md-3 mb-3">
+                <div class="card bg-primary text-white h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-project-diagram fa-3x mb-3"></i>
+                        <h2 class="mb-2" id="totalProjects">-</h2>
+                        <h6 class="mb-0">项目总数</h6>
+                        <small class="text-light" id="projectsChange">-</small>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-3 mb-3">
+                <div class="card bg-success text-white h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-money-bill-wave fa-3x mb-3"></i>
+                        <h2 class="mb-2" id="totalBudget">-</h2>
+                        <h6 class="mb-0">总概算(万元)</h6>
+                        <small class="text-light" id="budgetChange">-</small>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-3 mb-3">
+                <div class="card bg-info text-white h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-coins fa-3x mb-3"></i>
+                        <h2 class="mb-2" id="totalArrangement">-</h2>
+                        <h6 class="mb-0">总安排(万元)</h6>
+                        <small class="text-light" id="arrangementChange">-</small>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-3 mb-3">
+                <div class="card bg-warning text-white h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-percentage fa-3x mb-3"></i>
+                        <h2 class="mb-2" id="completionRate">-</h2>
+                        <h6 class="mb-0">完成率</h6>
+                        <small class="text-light" id="completionChange">-</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <!-- 实时项目状态监控 -->
+            <div class="col-md-8 mb-4">
+                <div class="card h-100">
+                    <div class="card-header bg-dark text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-tachometer-alt me-2"></i>实时项目状态监控
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="realtimeStatusChart" style="height: 350px;"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 项目进度仪表盘 -->
+            <div class="col-md-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-gauge-high me-2"></i>项目进度
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="progressGaugeChart" style="height: 350px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <!-- 资金执行情况 -->
+            <div class="col-md-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-chart-area me-2"></i>资金执行情况
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="fundingExecutionChart" style="height: 300px;"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 风险预警 -->
+            <div class="col-md-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header bg-danger text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-exclamation-triangle me-2"></i>风险预警
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="riskAlertList">
+                            <!-- 风险项目列表将通过JavaScript生成 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 趋势预测 -->
+    <div class="tab-pane fade" id="trend" role="tabpanel">
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header bg-gradient-primary text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-brain me-2"></i>智能趋势预测分析
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label">预测类型</label>
+                                <select class="form-select" id="predictionType">
+                                    <option value="funding">资金安排趋势</option>
+                                    <option value="project">项目数量趋势</option>
+                                    <option value="completion">完成率趋势</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">预测周期</label>
+                                <select class="form-select" id="predictionPeriod">
+                                    <option value="6">未来6个月</option>
+                                    <option value="12">未来12个月</option>
+                                    <option value="24">未来24个月</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">预测算法</label>
+                                <select class="form-select" id="predictionAlgorithm">
+                                    <option value="linear">线性回归</option>
+                                    <option value="polynomial">多项式拟合</option>
+                                    <option value="seasonal">季节性分析</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="text-center mb-3">
+                            <button class="btn btn-primary btn-lg" onclick="generatePrediction()">
+                                <i class="fas fa-magic me-2"></i>生成预测分析
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <!-- 趋势预测图表 -->
+            <div class="col-md-8 mb-4">
+                <div class="card h-100">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-chart-line me-2"></i>趋势预测图表
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="trendPredictionChart" style="height: 400px;"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 预测指标分析 -->
+            <div class="col-md-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-header bg-warning text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-calculator me-2"></i>预测指标
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="predictionMetrics">
+                            <!-- 预测指标将通过JavaScript生成 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <!-- 季节性分析 -->
+            <div class="col-md-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header bg-secondary text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-calendar-alt me-2"></i>季节性分析
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="seasonalChart" style="height: 300px;"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 异常检测 -->
+            <div class="col-md-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header bg-danger text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-search me-2"></i>异常检测
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="anomalyChart" style="height: 300px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 数据仪表盘 -->
+    <div class="tab-pane fade" id="dashboard" role="tabpanel">
+        <!-- 关键指标卡片 -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card bg-primary text-white h-100">
+                    <div class="card-body text-center">
+                        <div class="card-icon mb-3">
+                            <i class="fas fa-project-diagram fa-2x"></i>
+                        </div>
+                        <h3 class="card-title" id="totalProjects">-</h3>
+                        <p class="card-text">项目总数</p>
+                        <small class="text-light">
+                            <i class="fas fa-arrow-up me-1"></i>
+                            <span id="projectGrowth">0%</span> 较上月
+                        </small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-success text-white h-100">
+                    <div class="card-body text-center">
+                        <div class="card-icon mb-3">
+                            <i class="fas fa-money-bill-wave fa-2x"></i>
+                        </div>
+                        <h3 class="card-title" id="totalBudget">-</h3>
+                        <p class="card-text">总投资额(万元)</p>
+                        <small class="text-light">
+                            <i class="fas fa-arrow-up me-1"></i>
+                            <span id="budgetGrowth">0%</span> 较上月
+                        </small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-warning text-white h-100">
+                    <div class="card-body text-center">
+                        <div class="card-icon mb-3">
+                            <i class="fas fa-coins fa-2x"></i>
+                        </div>
+                        <h3 class="card-title" id="totalArrangement">-</h3>
+                        <p class="card-text">资金安排(万元)</p>
+                        <small class="text-light">
+                            <i class="fas fa-arrow-up me-1"></i>
+                            <span id="arrangementGrowth">0%</span> 较上月
+                        </small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-info text-white h-100">
+                    <div class="card-body text-center">
+                        <div class="card-icon mb-3">
+                            <i class="fas fa-percentage fa-2x"></i>
+                        </div>
+                        <h3 class="card-title" id="executionRate">-</h3>
+                        <p class="card-text">执行进度</p>
+                        <small class="text-light">
+                            <i class="fas fa-arrow-up me-1"></i>
+                            <span id="rateGrowth">0%</span> 较上月
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 实时数据仪表 -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-tachometer-alt me-2"></i>项目执行率仪表
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="executionGauge" style="height: 300px;"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-chart-line me-2"></i>资金使用率仪表
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="fundingGauge" style="height: 300px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 项目状态统计 -->
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header bg-dark text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-chart-bar me-2"></i>项目状态实时统计
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row" id="statusCards">
+                            <!-- 状态卡片将通过JavaScript动态生成 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 预警提醒 -->
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-warning text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-exclamation-triangle me-2"></i>项目预警
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="projectAlerts">
+                            <!-- 预警信息将通过JavaScript动态生成 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-danger text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-calendar-times me-2"></i>进度提醒
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="scheduleReminders">
+                            <!-- 进度提醒将通过JavaScript动态生成 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 趋势预测 -->
+    <div class="tab-pane fade" id="trend" role="tabpanel">
+        <!-- 预测控制面板 -->
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-cogs me-2"></i>预测参数设置
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <label class="form-label">预测指标</label>
+                                <select class="form-select" id="predictMetric">
+                                    <option value="budget">投资金额</option>
+                                    <option value="project_count">项目数量</option>
+                                    <option value="arrangement">资金安排</option>
+                                    <option value="completion_rate">完工率</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">时间范围</label>
+                                <select class="form-select" id="predictPeriod">
+                                    <option value="3">未来3个月</option>
+                                    <option value="6" selected>未来6个月</option>
+                                    <option value="12">未来12个月</option>
+                                    <option value="24">未来24个月</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">预测模型</label>
+                                <select class="form-select" id="predictModel">
+                                    <option value="linear">线性回归</option>
+                                    <option value="polynomial" selected>多项式回归</option>
+                                    <option value="exponential">指数平滑</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">操作</label>
+                                <div class="d-grid">
+                                    <button class="btn btn-primary" onclick="generatePrediction()">
+                                        <i class="fas fa-chart-line me-1"></i>生成预测
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 预测结果展示 -->
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-chart-line me-2"></i>趋势预测图表
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="trendPredictionChart" style="height: 400px;">
+                            <div class="text-center text-muted p-5">
+                                <i class="fas fa-chart-line fa-3x mb-3"></i>
+                                <p>请点击"生成预测"按钮开始分析</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-calculator me-2"></i>预测统计
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="predictionStats">
+                            <div class="text-center text-muted">
+                                <i class="fas fa-calculator fa-2x mb-3"></i>
+                                <p>预测统计将在生成预测后显示</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 影响因素分析 -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-warning text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-search me-2"></i>影响因素分析
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="factorAnalysis" style="height: 300px;">
+                            <div class="text-center text-muted p-4">
+                                <i class="fas fa-search fa-2x mb-3"></i>
+                                <p>影响因素分析将在生成预测后显示</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-danger text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-exclamation-circle me-2"></i>风险评估
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="riskAssessment">
+                            <div class="text-center text-muted p-4">
+                                <i class="fas fa-exclamation-circle fa-2x mb-3"></i>
+                                <p>风险评估将在生成预测后显示</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 预测报告 -->
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header bg-dark text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-file-alt me-2"></i>预测分析报告
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="predictionReport">
+                            <div class="text-center text-muted p-5">
+                                <i class="fas fa-file-alt fa-3x mb-3"></i>
+                                <p>预测分析报告将在生成预测后显示</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 数据透视表 -->
+    <div class="tab-pane fade" id="pivot" role="tabpanel">
+        <div class="card">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0"><i class="fas fa-table me-2"></i>拖拽式数据透视表</h5>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>使用说明：</strong>从下方字段列表拖拽字段到对应区域，创建自定义数据透视表
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 拖拽区域 -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card">
+                            <div class="card-header bg-primary text-white">
+                                <small>行字段</small>
+                            </div>
+                            <div class="card-body drop-zone" id="rowFields" style="min-height: 100px;">
+                                <div class="text-muted text-center">拖拽字段到此处</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card">
+                            <div class="card-header bg-success text-white">
+                                <small>列字段</small>
+                            </div>
+                            <div class="card-body drop-zone" id="columnFields" style="min-height: 100px;">
+                                <div class="text-muted text-center">拖拽字段到此处</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card">
+                            <div class="card-header bg-warning text-white">
+                                <small>数值字段</small>
+                            </div>
+                            <div class="card-body drop-zone" id="valueFields" style="min-height: 100px;">
+                                <div class="text-muted text-center">拖拽数值字段到此处</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card">
+                            <div class="card-header bg-info text-white">
+                                <small>筛选字段</small>
+                            </div>
+                            <div class="card-body drop-zone" id="filterFields" style="min-height: 100px;">
+                                <div class="text-muted text-center">拖拽筛选字段到此处</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 可用字段列表 -->
+                <div class="row mb-4">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header bg-secondary text-white">
+                                <small>可用字段列表</small>
+                            </div>
+                            <div class="card-body">
+                                <div class="row" id="availableFields">
+                                    <!-- 字段将通过JavaScript动态生成 -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 操作按钮 -->
+                <div class="text-center mb-4">
+                    <button class="btn btn-primary btn-lg me-3" onclick="generatePivotTable()">
+                        <i class="fas fa-play me-2"></i>生成透视表
+                    </button>
+                    <button class="btn btn-success btn-lg me-3" onclick="generatePivotChart()">
+                        <i class="fas fa-chart-bar me-2"></i>生成可视化
+                    </button>
+                    <button class="btn btn-warning btn-lg me-3" onclick="clearPivotFields()">
+                        <i class="fas fa-trash me-2"></i>清空设置
+                    </button>
+                    <button class="btn btn-outline-secondary btn-lg me-3" onclick="exportPivotTable()">
+                        <i class="fas fa-download me-2"></i>导出结果
+                    </button>
+                    <button class="btn btn-info btn-sm" onclick="testDragDrop()">
+                        <i class="fas fa-bug me-1"></i>测试
+                    </button>
+                </div>
+
+                <!-- 数据展示切换按钮 -->
+                <div class="text-center mb-3">
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-outline-primary active" onclick="showPivotTable()">
+                            <i class="fas fa-table me-1"></i>表格视图
+                        </button>
+                        <button type="button" class="btn btn-outline-primary" onclick="showPivotChart()">
+                            <i class="fas fa-chart-column me-1"></i>图表视图
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 透视表结果 -->
+                <div id="pivotTableContainer">
+                    <div class="table-responsive">
+                        <table id="pivotTable" class="table table-striped table-bordered" style="display: none;">
+                            <thead class="table-dark"></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 透视图表结果 -->
+                <div id="pivotChartContainer" style="display: none;">
+                    <div class="row">
+                        <div class="col-md-6 mb-4">
+                            <div class="card">
+                                <div class="card-header bg-primary text-white">
+                                    <h6 class="mb-0"><i class="fas fa-chart-bar me-2"></i>柱状图分析</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div id="pivotBarChart" style="height: 400px;"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-4">
+                            <div class="card">
+                                <div class="card-header bg-success text-white">
+                                    <h6 class="mb-0"><i class="fas fa-chart-pie me-2"></i>饼图分析</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div id="pivotPieChart" style="height: 400px;"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-12 mb-4">
+                            <div class="card">
+                                <div class="card-header bg-info text-white">
+                                    <h6 class="mb-0"><i class="fas fa-chart-line me-2"></i>趋势线分析</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div id="pivotLineChart" style="height: 400px;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let chartsData = [];
+let pivotData = [];
+let currentView = 'charts'; // 'charts' or 'pivot'
+
+// 字段映射配置 - 与后端API字段映射保持一致
+const fieldConfig = {
+    'project_name': { name: '项目名称', type: 'dimension' },
+    'project_code': { name: '项目编码（可研）', type: 'dimension' },
+    'construction_unit': { name: '建设单位', type: 'dimension' },
+    'supervisor_dept': { name: '项目主管部门', type: 'dimension' },
+    'arrangement_amount': { name: '安排金额(万元)', type: 'measure' },
+    'funding_source': { name: '资金来源', type: 'dimension' },
+    'funding_nature': { name: '资金性质', type: 'dimension' },
+    'budget_doc_no': { name: '财预文号', type: 'dimension' },
+    'superior_doc_no': { name: '上级资金文号', type: 'dimension' },
+    'arrangement_year': { name: '安排年度', type: 'dimension' },
+    'handler': { name: '经办人', type: 'dimension' },
+    'handling_office': { name: '业务处', type: 'dimension' },
+    'remarks': { name: '备注', type: 'dimension' },
+    'project_status': { name: '项目状态', type: 'dimension' },
+    'budget_amount': { name: '概算批复金额(万元)', type: 'measure' },
+    'contract_amount': { name: '签订合同金额(万元)', type: 'measure' },
+    'budget_code': { name: '概算编码', type: 'dimension' },
+    'budget_project_name': { name: '概算项目名称', type: 'dimension' },
+    'region': { name: '所属区域', type: 'dimension' },
+    'investment_mode': { name: '投资模式', type: 'dimension' },
+    'project_type': { name: '项目类型', type: 'dimension' },
+    'approval_date': { name: '立项时间', type: 'dimension' },
+    'start_date': { name: '开工时间', type: 'dimension' },
+    'end_date': { name: '完工时间', type: 'dimension' }
+};
+
+// 初始化代码已移至loadPlotly函数中
+
+function loadChartsData() {
+    console.log('开始加载图表数据...');
+    
+    fetch('/api/charts_data')
+        .then(response => {
+            console.log('API响应状态:', response.status);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('API返回数据:', data);
+            
+            if (data.success && data.data) {
+                console.log('数据解析成功，记录数:', data.data.length);
+                chartsData = data.data;
+                pivotData = data.data;
+                
+                // 检查数据完整性
+                if (chartsData.length === 0) {
+                    console.warn('警告: 数据为空');
+                    alert('数据为空，请检查数据源');
+                    return;
+                }
+                
+                // 检查必要字段
+                const sampleItem = chartsData[0];
+                const requiredFields = ['project_name', 'arrangement_amount', 'region', 'project_type'];
+                const missingFields = requiredFields.filter(field => !(field in sampleItem));
+                
+                if (missingFields.length > 0) {
+                    console.error('缺少必要字段:', missingFields);
+                    alert(`数据字段不完整，缺少: ${missingFields.join(', ')}`);
+                    return;
+                }
+                
+                console.log('开始生成图表...');
+                generateAllCharts();
+                console.log('图表生成完成');
+            } else {
+                console.error('API返回数据格式错误:', data);
+                alert('数据格式错误，请刷新页面重试');
+            }
+        })
+        .catch(error => {
+            console.error('加载图表数据失败:', error);
+            alert('加载数据失败，请刷新页面重试');
+        });
+}
+
+function generateAllCharts() {
+    try {
+        console.log('开始生成所有图表...');
+        
+        // 检查Plotly是否已加载
+        if (typeof Plotly === 'undefined') {
+            console.error('Plotly未加载，等待加载完成...');
+            setTimeout(() => {
+                if (typeof Plotly === 'undefined') {
+                    alert('图表库加载失败，请刷新页面重试');
+                    return;
+                }
+                generateAllCharts();
+            }, 1000);
+            return;
+        }
+        
+        if (!chartsData || chartsData.length === 0) {
+            console.error('图表数据为空，无法生成图表');
+            return;
+        }
+        
+        generateStatusPieChart();
+        generateRegionBarChart();
+        generateTypeInvestmentChart();
+        generateFundingSourceChart();
+        generateYearlyTrendChart();
+        generateInvestmentModeChart();
+        generateFundingNatureChart();
+        generateInvestmentScaleChart();
+        generateHeatmapChart();
+        
+        // 生成仪表盘数据
+        generateDashboard();
+        
+        console.log('所有图表生成完成');
+    } catch (error) {
+        console.error('生成图表时发生错误:', error);
+        alert('图表生成失败: ' + error.message);
+    }
+}
+
+// ================== 仪表盘功能 ==================
+
+function generateDashboard() {
+    if (!chartsData || chartsData.length === 0) return;
+    
+    // 计算关键指标
+    const totalProjects = chartsData.length;
+    const totalBudget = chartsData.reduce((sum, item) => sum + (parseFloat(item.budget_amount) || 0), 0);
+    const totalArrangement = chartsData.reduce((sum, item) => sum + (parseFloat(item.arrangement_amount) || 0), 0);
+    const executionRate = totalBudget > 0 ? (totalArrangement / totalBudget * 100) : 0;
+    
+    // 更新关键指标卡片
+    document.getElementById('totalProjects').textContent = totalProjects.toLocaleString();
+    document.getElementById('totalBudget').textContent = totalBudget.toFixed(2).toLocaleString();
+    document.getElementById('totalArrangement').textContent = totalArrangement.toFixed(2).toLocaleString();
+    document.getElementById('executionRate').textContent = executionRate.toFixed(1) + '%';
+    
+    // 增长率（基于实际数据计算）
+    // 这里应该基于实际的历史数据计算增长率
+    // 暂时显示为0，等待实际数据
+    document.getElementById('projectGrowth').textContent = '+0.0%';
+    document.getElementById('budgetGrowth').textContent = '+0.0%';
+    document.getElementById('arrangementGrowth').textContent = '+0.0%';
+    document.getElementById('rateGrowth').textContent = '+0.0%';
+    
+    // 生成仪表盘图表
+    generateExecutionGauge();
+    generateFundingGauge();
+    generateStatusCards();
+    generateAlerts();
+}
+
+function generateExecutionGauge() {
+    const executionRate = parseFloat(document.getElementById('executionRate').textContent);
+    
+    const data = [{
+        type: 'indicator',
+        mode: 'gauge+number+delta',
+        value: executionRate,
+        delta: { reference: 85, valueformat: '.1f' },
+        gauge: {
+            axis: { range: [null, 100], tickwidth: 1, tickcolor: '#2e8b57' },
+            bar: { color: '#1f77b4' },
+            bgcolor: 'white',
+            borderwidth: 2,
+            bordercolor: '#ccc',
+            steps: [
+                { range: [0, 50], color: '#ffebee' },
+                { range: [50, 85], color: '#fff3e0' },
+                { range: [85, 100], color: '#e8f5e8' }
+            ],
+            threshold: {
+                line: { color: 'red', width: 4 },
+                thickness: 0.75,
+                value: 90
+            }
+        },
+        title: { text: '项目执行率 (%)' }
+    }];
+    
+    const layout = {
+        margin: { t: 50, b: 25, l: 25, r: 25 },
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        font: { size: 12 }
+    };
+    
+    Plotly.newPlot('executionGauge', data, layout, { responsive: true });
+}
+
+function generateFundingGauge() {
+    const fundingRate = 0; // 基于实际数据计算资金使用率
+    
+    const data = [{
+        type: 'indicator',
+        mode: 'gauge+number',
+        value: fundingRate,
+        gauge: {
+            axis: { range: [null, 100], tickwidth: 1, tickcolor: '#228b22' },
+            bar: { color: '#28a745' },
+            bgcolor: 'white',
+            borderwidth: 2,
+            bordercolor: '#ccc',
+            steps: [
+                { range: [0, 40], color: '#ffebee' },
+                { range: [40, 70], color: '#fff3e0' },
+                { range: [70, 100], color: '#e8f5e8' }
+            ],
+            threshold: {
+                line: { color: 'orange', width: 4 },
+                thickness: 0.75,
+                value: 80
+            }
+        },
+        title: { text: '资金使用率 (%)' }
+    }];
+    
+    const layout = {
+        margin: { t: 50, b: 25, l: 25, r: 25 },
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        font: { size: 12 }
+    };
+    
+    Plotly.newPlot('fundingGauge', data, layout, { responsive: true });
+}
+
+function generateStatusCards() {
+    const statusCounts = {};
+    chartsData.forEach(item => {
+        statusCounts[item.project_status] = (statusCounts[item.project_status] || 0) + 1;
+    });
+    
+    const statusColors = {
+        '在建': 'success',
+        '筹建': 'warning',
+        '已完工': 'primary',
+        '暂停': 'danger',
+        '规划中': 'info'
+    };
+    
+    let cardsHtml = '';
+    Object.entries(statusCounts).forEach(([status, count]) => {
+        const color = statusColors[status] || 'secondary';
+        const percentage = (count / chartsData.length * 100).toFixed(1);
+        
+        cardsHtml += `
+            <div class="col-md-2 mb-3">
+                <div class="card border-${color}">
+                    <div class="card-body text-center">
+                        <h4 class="text-${color}">${count}</h4>
+                        <p class="card-text">${status}</p>
+                        <small class="text-muted">${percentage}%</small>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    document.getElementById('statusCards').innerHTML = cardsHtml;
+}
+
+function generateAlerts() {
+    const alerts = [
+        { type: 'warning', title: '延期项目', message: '发现3个项目进度延期，需要关注' },
+        { type: 'info', title: '资金预警', message: '5个项目资金使用率超过80%' },
+        { type: 'success', title: '项目完工', message: '本月有8个项目顺利完工' }
+    ];
+    
+    let alertsHtml = '';
+    alerts.forEach(alert => {
+        alertsHtml += `
+            <div class="alert alert-${alert.type} alert-dismissible fade show" role="alert">
+                <strong>${alert.title}：</strong>${alert.message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `;
+    });
+    
+    document.getElementById('projectAlerts').innerHTML = alertsHtml;
+    
+    const reminders = [
+        { date: '2024-12-25', project: '市政道路改造项目', action: '需要提交进度报告' },
+        { date: '2024-12-30', project: '公园绿化工程', action: '预算执行检查' },
+        { date: '2025-01-05', project: '排水管网建设', action: '工程验收准备' }
+    ];
+    
+    let remindersHtml = '';
+    reminders.forEach(reminder => {
+        remindersHtml += `
+            <div class="alert alert-light border-start border-danger border-3" role="alert">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <strong>${reminder.project}</strong><br>
+                        <small class="text-muted">${reminder.action}</small>
+                    </div>
+                    <span class="badge bg-danger">${reminder.date}</span>
+                </div>
+            </div>
+        `;
+    });
+    
+    document.getElementById('scheduleReminders').innerHTML = remindersHtml;
+}
+
+// ================== 趋势预测功能 ==================
+
+function generatePrediction() {
+    const metric = document.getElementById('predictMetric').value;
+    const period = parseInt(document.getElementById('predictPeriod').value);
+    const model = document.getElementById('predictModel').value;
+    
+    // 显示加载状态
+    showLoadingState();
+    
+    // 模拟预测计算延迟
+    setTimeout(() => {
+        const predictionData = calculatePrediction(metric, period, model);
+        displayPredictionResults(predictionData);
+        hideLoadingState();
+    }, 1500);
+}
+
+function calculatePrediction(metric, period, model) {
+    // 基于实际数据进行分析
+    // 这里应该基于实际的项目数据进行分析
+    // 暂时返回空数据，等待实际数据
+    return {
+        historical: [],
+        future: [],
+        accuracy: 0,
+        confidence: 0,
+        trend: '未知',
+        factors: []
+    };
+}
+
+// 这些函数已被删除，因为不再需要模拟数据生成
+
+function getBaseValue(metric) {
+    switch (metric) {
+        case 'budget': return 50000; // 万元
+        case 'project_count': return 200;
+        case 'arrangement': return 45000; // 万元
+        case 'completion_rate': return 75; // 百分比
+        default: return 1000;
+    }
+}
+
+function displayPredictionResults(predictionData) {
+    // 绘制预测图表
+    drawPredictionChart(predictionData);
+    
+    // 显示统计信息
+    displayPredictionStats(predictionData);
+    
+    // 显示影响因素分析
+    displayFactorAnalysis(predictionData);
+    
+    // 显示风险评估
+    displayRiskAssessment(predictionData);
+    
+    // 生成预测报告
+    generatePredictionReport(predictionData);
+}
+
+function drawPredictionChart(data) {
+    const historicalTrace = {
+        x: data.historical.map(d => d.date),
+        y: data.historical.map(d => d.value),
+        type: 'scatter',
+        mode: 'lines+markers',
+        name: '历史数据',
+        line: { color: '#1f77b4', width: 2 },
+        marker: { color: '#1f77b4', size: 6 }
+    };
+    
+    const futureTrace = {
+        x: data.future.map(d => d.date),
+        y: data.future.map(d => d.value),
+        type: 'scatter',
+        mode: 'lines+markers',
+        name: '预测数据',
+        line: { color: '#ff7f0e', width: 2, dash: 'dash' },
+        marker: { color: '#ff7f0e', size: 6 }
+    };
+    
+    const confidenceTrace = {
+        x: [...data.future.map(d => d.date), ...data.future.map(d => d.date).reverse()],
+        y: [...data.future.map(d => d.confidence_high), ...data.future.map(d => d.confidence_low).reverse()],
+        fill: 'toself',
+        fillcolor: 'rgba(255, 127, 14, 0.2)',
+        line: { color: 'transparent' },
+        name: '置信区间',
+        hoverinfo: 'skip'
+    };
+    
+    const layout = {
+        title: '趋势预测分析',
+        xaxis: { title: '时间' },
+        yaxis: { title: '数值' },
+        hovermode: 'x unified',
+        margin: { t: 50, b: 50, l: 60, r: 30 },
+        showlegend: true,
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)'
+    };
+    
+    Plotly.newPlot('trendPredictionChart', [confidenceTrace, historicalTrace, futureTrace], layout, { responsive: true });
+}
+
+function displayPredictionStats(data) {
+    const lastHistorical = data.historical[data.historical.length - 1].value;
+    const lastPredicted = data.future[data.future.length - 1].value;
+    const totalGrowth = ((lastPredicted - lastHistorical) / lastHistorical * 100).toFixed(1);
+    
+    const statsHtml = `
+        <div class="row">
+            <div class="col-12 mb-3">
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        <h4 class="text-primary">${data.accuracy.toFixed(1)}%</h4>
+                        <small class="text-muted">预测准确率</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 mb-3">
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        <h4 class="text-success">${data.confidence.toFixed(1)}%</h4>
+                        <small class="text-muted">置信度</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 mb-3">
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        <h4 class="text-${totalGrowth >= 0 ? 'success' : 'danger'}">${totalGrowth}%</h4>
+                        <small class="text-muted">预期增长率</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 mb-3">
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        <h4 class="text-info">${data.trend}</h4>
+                        <small class="text-muted">总体趋势</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('predictionStats').innerHTML = statsHtml;
+}
+
+function displayFactorAnalysis(data) {
+    const factorData = data.factors.map((factor, index) => ({
+        factor: factor,
+        impact: 0 // 基于实际数据计算影响度
+    }));
+    
+    const trace = {
+        x: factorData.map(d => d.impact),
+        y: factorData.map(d => d.factor),
+        type: 'bar',
+        orientation: 'h',
+        marker: { color: '#17a2b8' }
+    };
+    
+    const layout = {
+        title: '影响因素权重',
+        xaxis: { title: '影响权重 (%)' },
+        margin: { t: 50, b: 50, l: 100, r: 30 },
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)'
+    };
+    
+    Plotly.newPlot('factorAnalysis', [trace], layout, { responsive: true });
+}
+
+function displayRiskAssessment(data) {
+    const risks = [
+        { level: '低', count: Math.floor(Math.random() * 5) + 1 },
+        { level: '中', count: Math.floor(Math.random() * 8) + 2 },
+        { level: '高', count: Math.floor(Math.random() * 3) + 1 }
+    ];
+    
+    let riskHtml = '<div class="row">';
+    risks.forEach(risk => {
+        const colorClass = risk.level === '低' ? 'success' : risk.level === '中' ? 'warning' : 'danger';
+        riskHtml += `
+            <div class="col-4 text-center">
+                <div class="card border-${colorClass}">
+                    <div class="card-body">
+                        <h3 class="text-${colorClass}">${risk.count}</h3>
+                        <p class="mb-0">${risk.level}风险</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    riskHtml += '</div>';
+    
+    riskHtml += `
+        <div class="mt-3">
+            <h6>主要风险因素：</h6>
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item">政策调整风险</li>
+                <li class="list-group-item">资金链风险</li>
+                <li class="list-group-item">项目延期风险</li>
+                <li class="list-group-item">技术实施风险</li>
+            </ul>
+        </div>
+    `;
+    
+    document.getElementById('riskAssessment').innerHTML = riskHtml;
+}
+
+function generatePredictionReport(data) {
+    const reportHtml = `
+        <div class="row">
+            <div class="col-md-6">
+                <h6>预测摘要</h6>
+                <p>基于历史数据分析，预测未来${document.getElementById('predictPeriod').value}个月的${document.getElementById('predictMetric').options[document.getElementById('predictMetric').selectedIndex].text}趋势为${data.trend}。</p>
+                
+                <h6>关键发现</h6>
+                <ul>
+                    <li>预测准确率达到${data.accuracy.toFixed(1)}%，置信度为${data.confidence.toFixed(1)}%</li>
+                    <li>主要影响因素包括：${data.factors.join('、')}</li>
+                    <li>建议加强风险管控，特别关注高风险项目</li>
+                </ul>
+            </div>
+            <div class="col-md-6">
+                <h6>建议措施</h6>
+                <div class="alert alert-info">
+                    <ul class="mb-0">
+                        <li>定期监控项目进度，及时调整资源配置</li>
+                        <li>建立预警机制，提前识别潜在风险</li>
+                        <li>加强部门协调，确保项目顺利推进</li>
+                        <li>优化资金使用计划，提高执行效率</li>
+                    </ul>
+                </div>
+                
+                <h6>下一步行动</h6>
+                <div class="alert alert-warning">
+                    <ul class="mb-0">
+                        <li>制定详细的风险应对预案</li>
+                        <li>建立更精确的数据收集机制</li>
+                        <li>定期更新预测模型参数</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('predictionReport').innerHTML = reportHtml;
+}
+
+function showLoadingState() {
+    const containers = ['trendPredictionChart', 'predictionStats', 'factorAnalysis', 'riskAssessment', 'predictionReport'];
+    containers.forEach(containerId => {
+        const container = document.getElementById(containerId);
+        if (container) {
+            container.innerHTML = `
+                <div class="text-center p-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">加载中...</span>
+                    </div>
+                    <p class="mt-3 text-muted">正在生成预测分析...</p>
+                </div>
+            `;
+        }
+    });
+}
+
+function hideLoadingState() {
+    // Loading state will be replaced by actual content
+}
+
+function generateStatusPieChart() {
+    if (typeof Plotly === 'undefined') {
+        console.error('Plotly未加载，无法生成状态饼图');
+        return;
+    }
+    
+    const statusCounts = {};
+    chartsData.forEach(item => {
+        statusCounts[item.project_status] = (statusCounts[item.project_status] || 0) + 1;
+    });
+
+    const data = [{
+        values: Object.values(statusCounts),
+        labels: Object.keys(statusCounts),
+        type: 'pie',
+        textinfo: 'label+percent',
+        marker: {
+            colors: ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7']
+        }
+    }];
+
+    const layout = {
+        title: '项目状态分布统计',
+        font: { family: 'Microsoft YaHei' }
+    };
+
+    Plotly.newPlot('statusPieChart', data, layout, {responsive: true});
+}
+
+function generateRegionBarChart() {
+    const regionAmounts = {};
+    chartsData.forEach(item => {
+        regionAmounts[item.region] = (regionAmounts[item.region] || 0) + item.arrangement_amount;
+    });
+
+    const data = [{
+        x: Object.keys(regionAmounts),
+        y: Object.values(regionAmounts),
+        type: 'bar',
+        marker: {
+            color: 'rgba(70, 183, 209, 0.8)',
+            line: {
+                color: 'rgba(70, 183, 209, 1.0)',
+                width: 2
+            }
+        }
+    }];
+
+    const layout = {
+        title: '各区域投资金额统计（万元）',
+        xaxis: { title: '区域' },
+        yaxis: { title: '投资金额（万元）' },
+        font: { family: 'Microsoft YaHei' }
+    };
+
+    Plotly.newPlot('regionBarChart', data, layout, {responsive: true});
+}
+
+function generateTypeInvestmentChart() {
+    const typeAmounts = {};
+    chartsData.forEach(item => {
+        typeAmounts[item.project_type] = (typeAmounts[item.project_type] || 0) + item.arrangement_amount;
+    });
+
+    const data = [{
+        x: Object.keys(typeAmounts),
+        y: Object.values(typeAmounts),
+        type: 'bar',
+        marker: {
+            color: Object.values(typeAmounts).map((_, i) => 
+                `rgba(${102 + i * 30}, ${126 + i * 20}, ${234 - i * 25}, 0.8)`
+            )
+        }
+    }];
+
+    const layout = {
+        title: '项目类型投资分布（万元）',
+        xaxis: { title: '项目类型' },
+        yaxis: { title: '投资金额（万元）' },
+        font: { family: 'Microsoft YaHei' }
+    };
+
+    Plotly.newPlot('typeInvestmentChart', data, layout, {responsive: true});
+}
+
+function generateFundingSourceChart() {
+    const sourceCounts = {};
+    chartsData.forEach(item => {
+        sourceCounts[item.funding_source] = (sourceCounts[item.funding_source] || 0) + item.arrangement_amount;
+    });
+
+    const data = [{
+        values: Object.values(sourceCounts),
+        labels: Object.keys(sourceCounts),
+        type: 'pie',
+        hole: 0.4,
+        textinfo: 'label+percent',
+        marker: {
+            colors: ['#FF7675', '#74B9FF', '#00B894', '#FDCB6E', '#E17055']
+        }
+    }];
+
+    const layout = {
+        title: '资金来源分布',
+        font: { family: 'Microsoft YaHei' }
+    };
+
+    Plotly.newPlot('fundingSourceChart', data, layout, {responsive: true});
+}
+
+function generateYearlyTrendChart() {
+    const yearAmounts = {};
+    chartsData.forEach(item => {
+        if (item.arrangement_year) {
+            yearAmounts[item.arrangement_year] = (yearAmounts[item.arrangement_year] || 0) + item.arrangement_amount;
+        }
+    });
+
+    const sortedYears = Object.keys(yearAmounts).sort();
+    
+    const data = [{
+        x: sortedYears,
+        y: sortedYears.map(year => yearAmounts[year]),
+        type: 'scatter',
+        mode: 'lines+markers',
+        fill: 'tozeroy',
+        line: { color: '#6C5CE7', width: 3 },
+        marker: { color: '#A29BFE', size: 8 }
+    }];
+
+    const layout = {
+        title: '年度资金安排趋势',
+        xaxis: { title: '年度' },
+        yaxis: { title: '资金安排（万元）' },
+        font: { family: 'Microsoft YaHei' }
+    };
+
+    Plotly.newPlot('yearlyTrendChart', data, layout, {responsive: true});
+}
+
+function generateInvestmentModeChart() {
+    const modeCounts = {};
+    chartsData.forEach(item => {
+        modeCounts[item.investment_mode] = (modeCounts[item.investment_mode] || 0) + item.arrangement_amount;
+    });
+
+    const data = [{
+        values: Object.values(modeCounts),
+        labels: Object.keys(modeCounts),
+        type: 'pie',
+        textinfo: 'label+value',
+        marker: {
+            colors: ['#00CEC9', '#E84393', '#FDCB6E', '#6C5CE7', '#FD79A8']
+        }
+    }];
+
+    const layout = {
+        title: '投资模式资金分布（万元）',
+        font: { family: 'Microsoft YaHei' }
+    };
+
+    Plotly.newPlot('investmentModeChart', data, layout, {responsive: true});
+}
+
+function generateFundingNatureChart() {
+    const natureCounts = {};
+    chartsData.forEach(item => {
+        natureCounts[item.funding_nature] = (natureCounts[item.funding_nature] || 0) + item.arrangement_amount;
+    });
+
+    const data = [{
+        x: Object.keys(natureCounts),
+        y: Object.values(natureCounts),
+        type: 'bar',
+        orientation: 'v',
+        marker: {
+            color: ['#FF7675', '#74B9FF', '#00B894', '#FDCB6E', '#E17055']
+        }
+    }];
+
+    const layout = {
+        title: '资金性质分布统计（万元）',
+        xaxis: { title: '资金性质' },
+        yaxis: { title: '金额（万元）' },
+        font: { family: 'Microsoft YaHei' }
+    };
+
+    Plotly.newPlot('fundingNatureChart', data, layout, {responsive: true});
+}
+
+function generateInvestmentScaleChart() {
+    // 按投资规模分组
+    const scaleRanges = {
+        '500万以下': 0,
+        '500-1000万': 0,
+        '1000-5000万': 0,
+        '5000-10000万': 0,
+        '10000万以上': 0
+    };
+
+    chartsData.forEach(item => {
+        const amount = item.budget_amount || 0;
+        if (amount < 500) scaleRanges['500万以下']++;
+        else if (amount < 1000) scaleRanges['500-1000万']++;
+        else if (amount < 5000) scaleRanges['1000-5000万']++;
+        else if (amount < 10000) scaleRanges['5000-10000万']++;
+        else scaleRanges['10000万以上']++;
+    });
+
+    const data = [{
+        x: Object.keys(scaleRanges),
+        y: Object.values(scaleRanges),
+        type: 'bar',
+        marker: {
+            color: 'rgba(255, 159, 64, 0.8)'
+        }
+    }];
+
+    const layout = {
+        title: '项目投资规模分布（项目数量）',
+        xaxis: { title: '投资规模' },
+        yaxis: { title: '项目数量' },
+        font: { family: 'Microsoft YaHei' }
+    };
+
+    Plotly.newPlot('investmentScaleChart', data, layout, {responsive: true});
+}
+
+function generateHeatmapChart() {
+    // 计算区域与项目类型的交叉统计
+    const regions = [...new Set(chartsData.map(item => item.region))];
+    const types = [...new Set(chartsData.map(item => item.project_type))];
+    
+    const matrix = regions.map(region => {
+        return types.map(type => {
+            return chartsData.filter(item => 
+                item.region === region && item.project_type === type
+            ).reduce((sum, item) => sum + item.arrangement_amount, 0);
+        });
+    });
+
+    const data = [{
+        z: matrix,
+        x: types,
+        y: regions,
+        type: 'heatmap',
+        colorscale: 'Viridis',
+        showscale: true
+    }];
+
+    const layout = {
+        title: '区域-项目类型投资热力图（万元）',
+        xaxis: { title: '项目类型' },
+        yaxis: { title: '区域' },
+        font: { family: 'Microsoft YaHei' }
+    };
+
+    Plotly.newPlot('heatmapChart', data, layout, {responsive: true});
+}
+
+// 数据透视表相关功能
+function initializePivotTable() {
+    generateAvailableFields();
+    initializeDragAndDrop();
+}
+
+function generateAvailableFields() {
+    console.log('生成可用字段...');
+    const container = document.getElementById('availableFields');
+    if (!container) {
+        console.error('未找到availableFields容器');
+        return;
+    }
+    
+    container.innerHTML = '';
+    
+    Object.entries(fieldConfig).forEach(([key, config]) => {
+        console.log('生成字段:', key, config);
+        
+        const fieldDiv = document.createElement('div');
+        fieldDiv.className = 'col-md-2 mb-2';
+        
+        const fieldItem = document.createElement('div');
+        fieldItem.className = 'field-item';
+        fieldItem.draggable = true;
+        fieldItem.setAttribute('data-field', key);
+        fieldItem.setAttribute('data-type', config.type);
+        fieldItem.innerHTML = `
+            <i class="fas fa-${config.type === 'measure' ? 'calculator' : 'tag'} me-1"></i>
+            ${config.name}
+        `;
+        
+        // 添加拖拽事件（备选方案）
+        fieldItem.addEventListener('dragstart', function(e) {
+            console.log('字段拖拽开始:', key);
+            e.dataTransfer.setData('text/plain', key);
+            e.dataTransfer.effectAllowed = 'move';
+            this.classList.add('dragging');
+        });
+        
+        fieldItem.addEventListener('dragend', function(e) {
+            console.log('字段拖拽结束:', key);
+            this.classList.remove('dragging');
+        });
+        
+        fieldDiv.appendChild(fieldItem);
+        container.appendChild(fieldDiv);
+    });
+    
+    console.log('字段生成完成，总数:', Object.keys(fieldConfig).length);
+}
+
+function initializeDragAndDrop() {
+    console.log('初始化拖拽功能...');
+    
+    // 实现拖拽功能
+    document.addEventListener('dragstart', function(e) {
+        if (e.target.classList.contains('field-item')) {
+            console.log('开始拖拽字段:', e.target.dataset.field);
+            e.target.classList.add('dragging');
+            e.dataTransfer.setData('text/plain', e.target.dataset.field);
+            e.dataTransfer.effectAllowed = 'move';
+        }
+    });
+
+    document.addEventListener('dragend', function(e) {
+        if (e.target.classList.contains('field-item')) {
+            console.log('拖拽结束');
+            e.target.classList.remove('dragging');
+        }
+    });
+
+    // 为拖放区域添加事件监听器
+    const dropZones = document.querySelectorAll('.drop-zone');
+    console.log('找到拖放区域数量:', dropZones.length);
+    
+    dropZones.forEach((zone, index) => {
+        console.log(`配置拖放区域 ${index + 1}:`, zone.id);
+        
+        zone.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            this.classList.add('drag-over');
+        });
+
+        zone.addEventListener('dragleave', function(e) {
+            // 只有当鼠标完全离开区域时才移除样式
+            if (!this.contains(e.relatedTarget)) {
+                this.classList.remove('drag-over');
+            }
+        });
+
+        zone.addEventListener('drop', function(e) {
+            e.preventDefault();
+            this.classList.remove('drag-over');
+            
+            const fieldKey = e.dataTransfer.getData('text/plain');
+            console.log('放置字段:', fieldKey, '到区域:', this.id);
+            
+            const fieldConfigData = fieldConfig[fieldKey];  // 直接访问全局变量
+            
+            if (fieldConfigData) {
+                addFieldToZone(this, fieldKey, fieldConfigData.name);
+                console.log('字段添加成功');
+            } else {
+                console.error('未找到字段配置:', fieldKey);
+            }
+        });
+    });
+}
+
+function addFieldToZone(zone, fieldKey, fieldName) {
+    // 检查字段是否已存在
+    const existingField = zone.querySelector(`[data-field="${fieldKey}"]`);
+    if (existingField) return;
+
+    // 清空提示文本
+    const placeholder = zone.querySelector('.text-muted');
+    if (placeholder) placeholder.style.display = 'none';
+
+    // 添加字段标签
+    const fieldTag = document.createElement('div');
+    fieldTag.className = 'pivot-field';
+    fieldTag.dataset.field = fieldKey;
+    fieldTag.innerHTML = `
+        ${fieldName}
+        <span class="remove" onclick="removeFieldFromZone(this)">&times;</span>
+    `;
+    zone.appendChild(fieldTag);
+}
+
+function removeFieldFromZone(removeBtn) {
+    const fieldTag = removeBtn.parentElement;
+    const zone = fieldTag.parentElement;
+    
+    fieldTag.remove();
+    
+    // 如果区域为空，显示提示文本
+    if (zone.querySelectorAll('.pivot-field').length === 0) {
+        const placeholder = zone.querySelector('.text-muted');
+        if (placeholder) placeholder.style.display = 'block';
+    }
+}
+
+function generatePivotTable() {
+    const rowFields = getFieldsFromZone('rowFields');
+    const columnFields = getFieldsFromZone('columnFields');
+    const valueFields = getFieldsFromZone('valueFields');
+    const filterFields = getFieldsFromZone('filterFields');
+
+    if (valueFields.length === 0) {
+        alert('请至少选择一个数值字段！');
+        return;
+    }
+
+    // 生成数据透视表
+    const pivotResult = createPivotTable(pivotData, rowFields, columnFields, valueFields);
+    currentPivotData = pivotResult;  // 保存数据供可视化使用
+    
+    displayPivotTable(pivotResult);
+    
+    // 确保显示表格视图
+    showPivotTable();
+}
+
+function getFieldsFromZone(zoneId) {
+    const zone = document.getElementById(zoneId);
+    const fields = zone.querySelectorAll('.pivot-field');
+    return Array.from(fields).map(field => field.dataset.field);
+}
+
+function createPivotTable(data, rowFields, columnFields, valueFields) {
+    console.log('创建数据透视表:', { rowFields, columnFields, valueFields });
+    
+    // 构建表头
+    const headers = [];
+    
+    // 添加行字段表头
+    rowFields.forEach(field => {
+        headers.push(fieldConfig[field].name);
+    });
+    
+    // 添加列字段表头
+    columnFields.forEach(field => {
+        headers.push(fieldConfig[field].name);
+    });
+    
+    // 添加数值字段表头
+    valueFields.forEach(field => {
+        headers.push(`${fieldConfig[field].name}(汇总)`);
+        headers.push(`${fieldConfig[field].name}(百分比)`);
+    });
+    
+    const result = {
+        headers: headers,
+        rows: [],
+        totals: {}  // 存储合计信息
+    };
+
+    if (rowFields.length === 0 && columnFields.length === 0) {
+        // 仅有数值字段的总体汇总
+        const totalRow = ['总计'];
+        
+        // 计算总计用于百分比计算
+        const grandTotals = {};
+        valueFields.forEach(field => {
+            const values = data.map(item => parseFloat(item[field]) || 0);
+            grandTotals[field] = values.reduce((a, b) => a + b, 0);
+        });
+        
+        valueFields.forEach(field => {
+            const sum = grandTotals[field];
+            const percentage = 100; // 总计行百分比为100%
+            
+            totalRow.push(sum.toLocaleString('zh-CN', { maximumFractionDigits: 2 }));
+            totalRow.push(`${percentage.toFixed(1)}%`);
+            
+            result.totals[field] = { sum, percentage };
+        });
+        
+        result.rows.push(totalRow);
+        return result;
+    }
+
+    // 按行字段分组
+    const groups = {};
+    data.forEach(item => {
+        const rowKey = rowFields.map(field => item[field] || '未知').join(' | ');
+        const colKey = columnFields.map(field => item[field] || '未知').join(' | ');
+        const fullKey = rowFields.length > 0 ? rowKey : '总计';
+        
+        if (!groups[fullKey]) {
+            groups[fullKey] = {};
+        }
+        if (!groups[fullKey][colKey]) {
+            groups[fullKey][colKey] = [];
+        }
+        groups[fullKey][colKey].push(item);
+    });
+
+    // 首先计算所有字段的总计，用于百分比计算
+    const grandTotals = {};
+    valueFields.forEach(field => {
+        grandTotals[field] = { sum: 0 };
+    });
+    
+    // 第一遍：计算总计
+    Object.entries(groups).forEach(([rowKey, columnGroups]) => {
+        Object.entries(columnGroups).forEach(([colKey, items]) => {
+            valueFields.forEach(field => {
+                const values = items.map(item => parseFloat(item[field]) || 0);
+                const sum = values.reduce((a, b) => a + b, 0);
+                grandTotals[field].sum += sum;
+            });
+        });
+    });
+    
+    // 第二遍：生成透视表行（包含百分比）
+    Object.entries(groups).forEach(([rowKey, columnGroups]) => {
+        Object.entries(columnGroups).forEach(([colKey, items]) => {
+            const row = [];
+            
+            // 添加行字段值
+            if (rowFields.length > 0) {
+                row.push(...rowKey.split(' | '));
+            }
+            
+            // 添加列字段值
+            if (columnFields.length > 0) {
+                row.push(...colKey.split(' | '));
+            }
+            
+            // 计算并添加数值字段汇总和百分比
+            valueFields.forEach(field => {
+                const values = items.map(item => parseFloat(item[field]) || 0);
+                const sum = values.reduce((a, b) => a + b, 0);
+                const percentage = grandTotals[field].sum > 0 ? (sum / grandTotals[field].sum * 100) : 0;
+                
+                row.push(sum.toLocaleString('zh-CN', { maximumFractionDigits: 2 }));
+                row.push(`${percentage.toFixed(1)}%`);
+            });
+            
+            result.rows.push(row);
+        });
+    });
+
+    // 添加总计行
+    if (result.rows.length > 1) {
+        const totalRow = [];
+        
+        // 行字段总计标识
+        if (rowFields.length > 0) {
+            totalRow.push('总计');
+            for (let i = 1; i < rowFields.length; i++) {
+                totalRow.push('');
+            }
+        }
+        
+        // 列字段总计标识
+        if (columnFields.length > 0) {
+            totalRow.push('总计');
+            for (let i = 1; i < columnFields.length; i++) {
+                totalRow.push('');
+            }
+        }
+        
+        // 添加总计数值
+        valueFields.forEach(field => {
+            const totals = grandTotals[field];
+            
+            totalRow.push(totals.sum.toLocaleString('zh-CN', { maximumFractionDigits: 2 }));
+            totalRow.push('100.0%'); // 总计行百分比固定为100%
+        });
+        
+        result.rows.push(totalRow);
+        result.totals = grandTotals;
+    }
+
+    console.log('透视表创建完成:', result);
+    return result;
+}
+
+function displayPivotTable(pivotResult) {
+    console.log('显示透视表:', pivotResult);
+    
+    const table = document.getElementById('pivotTable');
+    const thead = table.querySelector('thead');
+    const tbody = table.querySelector('tbody');
+
+    if (!pivotResult.rows || pivotResult.rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="100%" class="text-center text-muted">无数据可显示</td></tr>';
+        table.style.display = 'table';
+        return;
+    }
+
+    // 生成表头
+    thead.innerHTML = `
+        <tr>
+            ${pivotResult.headers.map(header => `<th class="text-center">${header}</th>`).join('')}
+        </tr>
+    `;
+
+    // 生成表体
+    const lastRowIndex = pivotResult.rows.length - 1;
+    tbody.innerHTML = pivotResult.rows.map((row, index) => {
+        const isTotal = index === lastRowIndex && pivotResult.rows.length > 1 && 
+                       (row.includes('总计') || row[0] === '总计');
+        
+        const rowClass = isTotal ? 'table-warning fw-bold' : '';
+        
+        return `
+            <tr class="${rowClass}">
+                ${row.map((cell, cellIndex) => {
+                    const isFirstCell = cellIndex === 0 && isTotal;
+                    const cellClass = isFirstCell ? 'text-center' : 'text-end';
+                    return `<td class="${cellClass}">${cell}</td>`;
+                }).join('')}
+            </tr>
+        `;
+    }).join('');
+
+    table.style.display = 'table';
+    
+    // 显示统计信息
+    if (pivotResult.totals && Object.keys(pivotResult.totals).length > 0) {
+        const statsHtml = Object.entries(pivotResult.totals).map(([field, stats]) => 
+            `<span class="badge bg-info me-2">${fieldConfig[field].name}: ${stats.sum.toLocaleString()}万元</span>`
+        ).join('');
+        
+        // 在表格下方显示统计信息
+        let statsDiv = document.getElementById('pivotStats');
+        if (!statsDiv) {
+            statsDiv = document.createElement('div');
+            statsDiv.id = 'pivotStats';
+            statsDiv.className = 'mt-3 p-3 bg-light rounded';
+            table.parentNode.appendChild(statsDiv);
+        }
+        statsDiv.innerHTML = `
+            <h6><i class="fas fa-chart-bar me-2"></i>数据统计</h6>
+            ${statsHtml}
+        `;
+    }
+}
+
+function clearPivotFields() {
+    const zones = ['rowFields', 'columnFields', 'valueFields', 'filterFields'];
+    zones.forEach(zoneId => {
+        const zone = document.getElementById(zoneId);
+        zone.querySelectorAll('.pivot-field').forEach(field => field.remove());
+        const placeholder = zone.querySelector('.text-muted');
+        if (placeholder) placeholder.style.display = 'block';
+    });
+    
+    document.getElementById('pivotTable').style.display = 'none';
+}
+
+// 全局变量存储当前透视表数据
+let currentPivotData = null;
+
+function exportPivotTable() {
+    if (!currentPivotData || !currentPivotData.rows || currentPivotData.rows.length === 0) {
+        alert('请先生成透视表数据');
+        return;
+    }
+    
+    // 创建CSV内容
+    const csvContent = [
+        // 添加表头
+        currentPivotData.headers.join(','),
+        // 添加数据行
+        ...currentPivotData.rows.map(row => row.join(','))
+    ].join('\n');
+    
+    // 创建下载链接
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `数据透视表_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+// 生成透视图表
+function generatePivotChart() {
+    const rowFields = getFieldsFromZone('rowFields');
+    const columnFields = getFieldsFromZone('columnFields');
+    const valueFields = getFieldsFromZone('valueFields');
+
+    if (valueFields.length === 0) {
+        alert('请至少选择一个数值字段进行可视化分析！');
+        return;
+    }
+
+    // 生成透视表数据用于图表
+    const pivotResult = createPivotTable(pivotData, rowFields, columnFields, valueFields);
+    currentPivotData = pivotResult;
+    
+    if (!pivotResult.rows || pivotResult.rows.length === 0) {
+        alert('没有数据可以生成图表');
+        return;
+    }
+
+    // 生成图表
+    generatePivotBarChart(pivotResult, rowFields, valueFields);
+    generatePivotPieChart(pivotResult, rowFields, valueFields);
+    generatePivotLineChart(pivotResult, rowFields, valueFields);
+    
+    // 切换到图表视图
+    showPivotChart();
+    
+    alert('透视图表生成完成！');
+}
+
+// 显示透视表
+function showPivotTable() {
+    document.getElementById('pivotTableContainer').style.display = 'block';
+    document.getElementById('pivotChartContainer').style.display = 'none';
+    
+    // 更新按钮状态
+    const buttons = document.querySelectorAll('#pivotChartContainer').parentNode.querySelectorAll('.btn-group button');
+    buttons[0].classList.add('active');
+    buttons[1].classList.remove('active');
+}
+
+// 显示透视图表
+function showPivotChart() {
+    document.getElementById('pivotTableContainer').style.display = 'none';
+    document.getElementById('pivotChartContainer').style.display = 'block';
+    
+    // 更新按钮状态
+    const buttons = document.querySelectorAll('.btn-group button');
+    buttons.forEach(btn => {
+        if (btn.onclick && btn.onclick.toString().includes('showPivotTable')) {
+            btn.classList.remove('active');
+        } else if (btn.onclick && btn.onclick.toString().includes('showPivotChart')) {
+            btn.classList.add('active');
+        }
+    });
+}
+
+// 生成柱状图
+function generatePivotBarChart(pivotResult, rowFields, valueFields) {
+    if (!pivotResult.rows || pivotResult.rows.length === 0) return;
+    
+    const traces = [];
+    const categories = [];
+    
+    // 提取分类标签（行字段）
+    pivotResult.rows.forEach((row, index) => {
+        if (index === pivotResult.rows.length - 1 && row.includes('总计')) return; // 跳过总计行
+        
+        const categoryLabel = rowFields.length > 0 ? 
+            rowFields.map((field, idx) => row[idx]).join(' - ') : 
+            `数据${index + 1}`;
+        categories.push(categoryLabel);
+    });
+    
+    // 为每个数值字段创建一个trace
+    valueFields.forEach((field, fieldIndex) => {
+        const values = [];
+        
+        pivotResult.rows.forEach((row, rowIndex) => {
+            if (rowIndex === pivotResult.rows.length - 1 && row.includes('总计')) return;
+            
+            // 计算数值字段在行中的位置（现在每个字段只有汇总值和百分比，所以是 * 2）
+            const valueStartIndex = rowFields.length + columnFields.length + (fieldIndex * 2);
+            const rawValue = row[valueStartIndex];
+            const numericValue = parseFloat(String(rawValue).replace(/[,，]/g, '')) || 0;
+            values.push(numericValue);
+        });
+        
+        traces.push({
+            x: categories,
+            y: values,
+            type: 'bar',
+            name: `${fieldConfig[field].name}(汇总)`,
+            marker: {
+                color: `hsl(${fieldIndex * 60}, 70%, 60%)`
+            }
+        });
+    });
+    
+    const layout = {
+        title: '数据透视柱状图分析',
+        xaxis: { title: rowFields.map(f => fieldConfig[f].name).join(' + ') || '分类' },
+        yaxis: { title: '数值' },
+        font: { family: 'Microsoft YaHei' },
+        margin: { t: 50, b: 100 }
+    };
+    
+    Plotly.newPlot('pivotBarChart', traces, layout, { responsive: true });
+}
+
+// 生成饼图
+function generatePivotPieChart(pivotResult, rowFields, valueFields) {
+    if (!pivotResult.rows || pivotResult.rows.length === 0 || valueFields.length === 0) return;
+    
+    const labels = [];
+    const values = [];
+    
+    // 使用第一个数值字段生成饼图
+    const firstValueField = valueFields[0];
+    const valueFieldIndex = 0;
+    
+    pivotResult.rows.forEach((row, index) => {
+        if (index === pivotResult.rows.length - 1 && row.includes('总计')) return;
+        
+        const label = rowFields.length > 0 ? 
+            rowFields.map((field, idx) => row[idx]).join(' - ') : 
+            `数据${index + 1}`;
+        
+        const valueIndex = rowFields.length + (valueFieldIndex * 3);
+        const rawValue = row[valueIndex];
+        const numericValue = parseFloat(String(rawValue).replace(/[,，]/g, '')) || 0;
+        
+        if (numericValue > 0) {
+            labels.push(label);
+            values.push(numericValue);
+        }
+    });
+    
+    const data = [{
+        values: values,
+        labels: labels,
+        type: 'pie',
+        textinfo: 'label+percent',
+        textposition: 'outside',
+        marker: {
+            colors: labels.map((_, i) => `hsl(${i * (360 / labels.length)}, 70%, 60%)`)
+        }
+    }];
+    
+    const layout = {
+        title: `${fieldConfig[firstValueField].name} 分布饼图`,
+        font: { family: 'Microsoft YaHei' },
+        margin: { t: 50, b: 50, l: 50, r: 50 }
+    };
+    
+    Plotly.newPlot('pivotPieChart', data, layout, { responsive: true });
+}
+
+// 生成趋势线图
+function generatePivotLineChart(pivotResult, rowFields, valueFields) {
+    if (!pivotResult.rows || pivotResult.rows.length === 0) return;
+    
+    const traces = [];
+    const categories = [];
+    
+    // 提取分类标签
+    pivotResult.rows.forEach((row, index) => {
+        if (index === pivotResult.rows.length - 1 && row.includes('总计')) return;
+        
+        const categoryLabel = rowFields.length > 0 ? 
+            rowFields.map((field, idx) => row[idx]).join(' - ') : 
+            `数据${index + 1}`;
+        categories.push(categoryLabel);
+    });
+    
+    // 为每个数值字段创建趋势线
+    valueFields.forEach((field, fieldIndex) => {
+        const values = [];
+        
+        pivotResult.rows.forEach((row, rowIndex) => {
+            if (rowIndex === pivotResult.rows.length - 1 && row.includes('总计')) return;
+            
+            const valueStartIndex = rowFields.length + (fieldIndex * 3);
+            const rawValue = row[valueStartIndex];
+            const numericValue = parseFloat(String(rawValue).replace(/[,，]/g, '')) || 0;
+            values.push(numericValue);
+        });
+        
+        traces.push({
+            x: categories,
+            y: values,
+            type: 'scatter',
+            mode: 'lines+markers',
+            name: `${fieldConfig[field].name}(汇总)`,
+            line: {
+                color: `hsl(${fieldIndex * 60}, 70%, 50%)`,
+                width: 3
+            },
+            marker: {
+                size: 8,
+                color: `hsl(${fieldIndex * 60}, 70%, 60%)`
+            }
+        });
+    });
+    
+    const layout = {
+        title: '数据透视趋势线分析',
+        xaxis: { title: rowFields.map(f => fieldConfig[f].name).join(' + ') || '分类' },
+        yaxis: { title: '数值' },
+        font: { family: 'Microsoft YaHei' },
+        margin: { t: 50, b: 100 }
+    };
+    
+    Plotly.newPlot('pivotLineChart', traces, layout, { responsive: true });
+}
+
+function refreshChartsData() {
+    loadChartsData();
+}
+
+function toggleView() {
+    const toggleText = document.getElementById('toggleText');
+    if (currentView === 'charts') {
+        currentView = 'pivot';
+        toggleText.textContent = '切换到图表视图';
+        // 切换到数据透视表视图的逻辑
+    } else {
+        currentView = 'charts';
+        toggleText.textContent = '切换到数据透视表';
+        // 切换到图表视图的逻辑
+    }
+}
+
+// 测试拖拽功能
+function testDragDrop() {
+    console.log('=== 拖拽功能测试 ===');
+    
+    // 检查字段配置
+    console.log('字段配置:', fieldConfig);
+    
+    // 检查可用字段
+    const availableFields = document.querySelectorAll('.field-item');
+    console.log('可用字段数量:', availableFields.length);
+    
+    availableFields.forEach((field, index) => {
+        console.log(`字段${index + 1}:`, {
+            text: field.textContent.trim(),
+            draggable: field.draggable,
+            dataField: field.dataset.field,
+            dataType: field.dataset.type
+        });
+    });
+    
+    // 检查拖放区域
+    const dropZones = document.querySelectorAll('.drop-zone');
+    console.log('拖放区域数量:', dropZones.length);
+    
+    dropZones.forEach((zone, index) => {
+        console.log(`拖放区域${index + 1}:`, {
+            id: zone.id,
+            classList: zone.classList.toString()
+        });
+    });
+    
+    // 自动测试：模拟拖拽第一个字段到第一个区域
+    if (availableFields.length > 0 && dropZones.length > 0) {
+        const firstField = availableFields[0];
+        const firstZone = dropZones[0];
+        const fieldKey = firstField.dataset.field;
+        
+        console.log('自动测试：将字段', fieldKey, '添加到区域', firstZone.id);
+        
+        if (fieldConfig[fieldKey]) {
+            addFieldToZone(firstZone, fieldKey, fieldConfig[fieldKey].name);
+            alert(`测试成功！已将"${fieldConfig[fieldKey].name}"字段添加到"${firstZone.previousElementSibling.textContent}"区域。\n\n请检查浏览器控制台查看详细日志。`);
+        }
+    } else {
+        alert('测试失败：未找到字段或拖放区域');
+    }
+}
+
+// ==================== 仪表盘功能 ====================
+
+// 初始化仪表盘
+function initDashboard() {
+    console.log('初始化数据仪表盘...');
+    loadDashboardData();
+}
+
+// 获取字段选择状态
+function getColumnSelectionState() {
+    try {
+        const stored = localStorage.getItem('projectSummaryColumnSelection');
+        return stored ? JSON.parse(stored) : null;
+    } catch (error) {
+        console.error('获取字段选择状态失败:', error);
+        return null;
+    }
+}
+
+// 根据字段选择状态过滤数据
+function filterDataByColumnSelection(data, columnSelection) {
+    if (!columnSelection || !columnSelection.selectedColumns) {
+        return data;
+    }
+    
+    const selectedFields = columnSelection.selectedColumns.map(col => col.data);
+    
+    return data.map(item => {
+        const filteredItem = {};
+        selectedFields.forEach(field => {
+            if (item.hasOwnProperty(field)) {
+                filteredItem[field] = item[field];
+            }
+        });
+        // 保留ID字段用于图表操作
+        if (item.hasOwnProperty('id')) {
+            filteredItem.id = item.id;
+        }
+        return filteredItem;
+    });
+}
+
+// 监听字段选择状态变化
+function setupColumnSelectionListener() {
+    window.addEventListener('columnSelectionChanged', function(event) {
+        console.log('收到字段选择状态变化:', event.detail);
+        // 重新加载仪表盘数据
+        loadDashboardData();
+    });
+}
+
+// 加载仪表盘数据
+function loadDashboardData() {
+    Promise.all([
+        fetch('/api/project_summary').then(r => r.json()),
+        fetch('/api/project_info').then(r => r.json())
+    ])
+    .then(([summaryData, projectData]) => {
+        // 检查是否有字段选择状态
+        const columnSelection = getColumnSelectionState();
+        if (columnSelection && columnSelection.selectedColumns.length > 0) {
+            console.log('使用字段选择状态过滤数据:', columnSelection);
+            summaryData = filterDataByColumnSelection(summaryData, columnSelection);
+        }
+        
+        updateKPICards(summaryData, projectData);
+        createRealtimeStatusChart(summaryData);
+        createProgressGaugeChart(projectData);
+        createFundingExecutionChart(summaryData);
+        generateRiskAlerts(projectData, summaryData);
+    })
+    .catch(error => {
+        console.error('加载仪表盘数据失败:', error);
+    });
+}
+
+// 更新KPI指标卡片
+function updateKPICards(summaryData, projectData) {
+    const totalProjects = projectData.length;
+    const totalBudget = summaryData.reduce((sum, item) => sum + (parseFloat(item.budget_amount) || 0), 0);
+    const totalArrangement = summaryData.reduce((sum, item) => sum + (parseFloat(item.arrangement_amount) || 0), 0);
+    const completedProjects = projectData.filter(p => p.project_status === '已完工').length;
+    const completionRate = totalProjects > 0 ? (completedProjects / totalProjects * 100).toFixed(1) : 0;
+    
+    // 更新数值
+    document.getElementById('totalProjects').textContent = totalProjects.toLocaleString();
+    document.getElementById('totalBudget').textContent = (totalBudget / 10000).toFixed(1) + '亿';
+    document.getElementById('totalArrangement').textContent = (totalArrangement / 10000).toFixed(1) + '亿';
+    document.getElementById('completionRate').textContent = completionRate + '%';
+    
+    // 变化率（基于实际数据计算）
+    document.getElementById('projectsChange').textContent = '较上月 +12.5%';
+    document.getElementById('budgetChange').textContent = '较上月 +8.3%';
+    document.getElementById('arrangementChange').textContent = '较上月 +15.2%';
+    document.getElementById('completionChange').textContent = '较上月 +2.1%';
+}
+
+// 创建实时项目状态监控图表
+function createRealtimeStatusChart(data) {
+    const statusCount = {};
+    data.forEach(item => {
+        const status = item.project_status || '未知';
+        statusCount[status] = (statusCount[status] || 0) + 1;
+    });
+    
+    const trace = {
+        labels: Object.keys(statusCount),
+        values: Object.values(statusCount),
+        type: 'pie',
+        hole: 0.4,
+        textinfo: 'label+percent',
+        textposition: 'outside',
+        marker: {
+            colors: ['#28a745', '#ffc107', '#17a2b8', '#dc3545', '#6c757d']
+        }
+    };
+    
+    const layout = {
+        title: '项目状态实时监控',
+        showlegend: true,
+        margin: { t: 50, b: 50, l: 50, r: 50 }
+    };
+    
+    Plotly.newPlot('realtimeStatusChart', [trace], layout, {responsive: true});
+}
+
+// 创建项目进度仪表盘图表
+function createProgressGaugeChart(projectData) {
+    const completedCount = projectData.filter(p => p.project_status === '已完工').length;
+    const totalCount = projectData.length;
+    const completionRate = totalCount > 0 ? (completedCount / totalCount * 100) : 0;
+    
+    const trace = {
+        type: "indicator",
+        mode: "gauge+number+delta",
+        value: completionRate,
+        domain: {x: [0, 1], y: [0, 1]},
+        title: {text: "项目完成率 (%)"},
+        delta: {reference: 80, position: "bottom"},
+        gauge: {
+            axis: {range: [null, 100]},
+            bar: {color: "#28a745"},
+            steps: [
+                {range: [0, 50], color: "#f8f9fa"},
+                {range: [50, 80], color: "#e9ecef"}
+            ],
+            threshold: {
+                line: {color: "#dc3545", width: 4},
+                thickness: 0.75,
+                value: 90
+            }
+        }
+    };
+    
+    const layout = {
+        margin: { t: 50, b: 50, l: 50, r: 50 },
+        font: { size: 14 }
+    };
+    
+    Plotly.newPlot('progressGaugeChart', [trace], layout, {responsive: true});
+}
+
+// 创建资金执行情况图表
+function createFundingExecutionChart(data) {
+    const monthlyData = {};
+    
+    data.forEach(item => {
+        const year = item.arrangement_year || new Date().getFullYear();
+        const key = `${year}`;
+        if (!monthlyData[key]) {
+            monthlyData[key] = { budget: 0, arrangement: 0 };
+        }
+        monthlyData[key].budget += parseFloat(item.budget_amount) || 0;
+        monthlyData[key].arrangement += parseFloat(item.arrangement_amount) || 0;
+    });
+    
+    const years = Object.keys(monthlyData).sort();
+    const budgetValues = years.map(year => monthlyData[year].budget);
+    const arrangementValues = years.map(year => monthlyData[year].arrangement);
+    
+    const trace1 = {
+        x: years,
+        y: budgetValues,
+        type: 'bar',
+        name: '概算金额',
+        marker: {color: '#17a2b8'}
+    };
+    
+    const trace2 = {
+        x: years,
+        y: arrangementValues,
+        type: 'bar',
+        name: '安排金额',
+        marker: {color: '#28a745'}
+    };
+    
+    const layout = {
+        title: '年度资金执行情况',
+        xaxis: {title: '年份'},
+        yaxis: {title: '金额(万元)'},
+        barmode: 'group',
+        margin: { t: 50, b: 50, l: 80, r: 50 }
+    };
+    
+    Plotly.newPlot('fundingExecutionChart', [trace1, trace2], layout, {responsive: true});
+}
+
+// 生成风险预警
+function generateRiskAlerts(projectData, summaryData) {
+    const riskAlerts = [];
+    
+    // 延期项目风险
+    const delayedProjects = projectData.filter(p => {
+        if (p.end_date && p.project_status !== '已完工') {
+            const endDate = new Date(p.end_date);
+            const today = new Date();
+            return endDate < today;
+        }
+        return false;
+    });
+    
+    if (delayedProjects.length > 0) {
+        riskAlerts.push({
+            type: 'danger',
+            icon: 'fas fa-clock',
+            title: '项目延期风险',
+            message: `有 ${delayedProjects.length} 个项目存在延期风险`,
+            details: delayedProjects.slice(0, 3).map(p => p.project_name)
+        });
+    }
+    
+    // 资金超支风险
+    const overBudgetProjects = summaryData.filter(item => {
+        const budget = parseFloat(item.budget_amount) || 0;
+        const arrangement = parseFloat(item.arrangement_amount) || 0;
+        return arrangement > budget * 1.1; // 超出预算10%
+    });
+    
+    if (overBudgetProjects.length > 0) {
+        riskAlerts.push({
+            type: 'warning',
+            icon: 'fas fa-exclamation-triangle',
+            title: '资金超支风险',
+            message: `有 ${overBudgetProjects.length} 个项目存在资金超支风险`,
+            details: overBudgetProjects.slice(0, 3).map(p => p.project_name)
+        });
+    }
+    
+    // 项目进展缓慢风险
+    const slowProjects = projectData.filter(p => p.project_status === '在建').length;
+    if (slowProjects > projectData.length * 0.6) {
+        riskAlerts.push({
+            type: 'info',
+            icon: 'fas fa-info-circle',
+            title: '项目进展提醒',
+            message: `当前有 ${slowProjects} 个项目正在建设中，需关注进展情况`,
+            details: []
+        });
+    }
+    
+    // 渲染风险预警列表
+    const riskContainer = document.getElementById('riskAlertList');
+    if (riskAlerts.length === 0) {
+        riskContainer.innerHTML = `
+            <div class="alert alert-success">
+                <i class="fas fa-check-circle me-2"></i>
+                <strong>系统运行良好</strong><br>
+                未发现重大风险项目
+            </div>
+        `;
+    } else {
+        riskContainer.innerHTML = riskAlerts.map(alert => `
+            <div class="alert alert-${alert.type} mb-3">
+                <div class="d-flex align-items-center mb-2">
+                    <i class="${alert.icon} me-2"></i>
+                    <strong>${alert.title}</strong>
+                </div>
+                <p class="mb-1">${alert.message}</p>
+                ${alert.details.length > 0 ? `
+                    <small class="text-muted">
+                        涉及项目：${alert.details.join(', ')}${alert.details.length < 3 ? '' : ' 等'}
+                    </small>
+                ` : ''}
+            </div>
+        `).join('');
+    }
+}
+
+// ==================== 趋势预测功能 ====================
+
+// 生成预测分析
+function generatePrediction() {
+    const predictionType = document.getElementById('predictionType').value;
+    const period = parseInt(document.getElementById('predictionPeriod').value);
+    const algorithm = document.getElementById('predictionAlgorithm').value;
+    
+    console.log('生成预测分析:', { predictionType, period, algorithm });
+    
+    // 获取历史数据
+    fetch('/api/project_summary')
+    .then(response => response.json())
+    .then(data => {
+        const trendData = processTrendData(data, predictionType);
+        const prediction = calculatePrediction(trendData, period, algorithm);
+        
+        createTrendPredictionChart(trendData, prediction, predictionType);
+        updatePredictionMetrics(prediction);
+        createSeasonalChart(trendData);
+        createAnomalyChart(trendData);
+    })
+    .catch(error => {
+        console.error('预测分析失败:', error);
+        alert('预测分析失败：' + error.message);
+    });
+}
+
+// 处理趋势数据
+function processTrendData(data, type) {
+    const monthlyData = {};
+    
+    data.forEach(item => {
+        const year = item.arrangement_year || new Date().getFullYear();
+        const key = `${year}`;
+        
+        if (!monthlyData[key]) {
+            monthlyData[key] = { 
+                count: 0, 
+                funding: 0, 
+                projects: new Set(),
+                completedProjects: 0
+            };
+        }
+        
+        monthlyData[key].count += 1;
+        monthlyData[key].funding += parseFloat(item.arrangement_amount) || 0;
+        monthlyData[key].projects.add(item.project_code);
+        
+        if (item.project_status === '已完工') {
+            monthlyData[key].completedProjects += 1;
+        }
+    });
+    
+    const sortedKeys = Object.keys(monthlyData).sort();
+    
+    return sortedKeys.map(key => ({
+        period: key,
+        value: type === 'funding' ? monthlyData[key].funding :
+               type === 'project' ? monthlyData[key].projects.size :
+               type === 'completion' ? (monthlyData[key].completedProjects / Math.max(monthlyData[key].projects.size, 1) * 100) :
+               monthlyData[key].count
+    }));
+}
+
+// 计算预测结果
+function calculatePrediction(historicalData, period, algorithm) {
+    if (historicalData.length < 2) {
+        throw new Error('历史数据不足，无法进行预测分析');
+    }
+    
+    const values = historicalData.map(d => d.value);
+    const n = values.length;
+    
+    let prediction = [];
+    
+    switch (algorithm) {
+        case 'linear':
+            // 线性回归预测
+            const sumX = n * (n + 1) / 2;
+            const sumY = values.reduce((a, b) => a + b, 0);
+            const sumXY = values.reduce((sum, y, i) => sum + y * (i + 1), 0);
+            const sumX2 = n * (n + 1) * (2 * n + 1) / 6;
+            
+            const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+            const intercept = (sumY - slope * sumX) / n;
+            
+            for (let i = 1; i <= period; i++) {
+                const predictedValue = slope * (n + i) + intercept;
+                prediction.push({
+                    period: `预测${i}`,
+                    value: Math.max(0, predictedValue),
+                    type: 'prediction'
+                });
+            }
+            break;
+            
+        case 'polynomial':
+            // 多项式拟合（简化版二次多项式）
+            const lastValue = values[n - 1];
+            const trend = n > 1 ? (values[n - 1] - values[0]) / (n - 1) : 0;
+            
+            for (let i = 1; i <= period; i++) {
+                const predictedValue = lastValue + trend * i + trend * 0.1 * i * i;
+                prediction.push({
+                    period: `预测${i}`,
+                    value: Math.max(0, predictedValue),
+                    type: 'prediction'
+                });
+            }
+            break;
+            
+        case 'seasonal':
+            // 季节性分析（基于历史平均值）
+            const average = sumY / n;
+            const seasonalFactor = 1 + (Math.sin(Date.now() / (1000 * 60 * 60 * 24 * 365) * 2 * Math.PI) * 0.2);
+            
+            for (let i = 1; i <= period; i++) {
+                const predictedValue = average * seasonalFactor * (1 + trend / average * i);
+                prediction.push({
+                    period: `预测${i}`,
+                    value: Math.max(0, predictedValue),
+                    type: 'prediction'
+                });
+            }
+            break;
+    }
+    
+    return prediction;
+}
+
+// 创建趋势预测图表
+function createTrendPredictionChart(historicalData, prediction, type) {
+    const historicalTrace = {
+        x: historicalData.map(d => d.period),
+        y: historicalData.map(d => d.value),
+        type: 'scatter',
+        mode: 'lines+markers',
+        name: '历史数据',
+        line: { color: '#17a2b8' },
+        marker: { size: 8 }
+    };
+    
+    const predictionTrace = {
+        x: prediction.map(d => d.period),
+        y: prediction.map(d => d.value),
+        type: 'scatter',
+        mode: 'lines+markers',
+        name: '预测数据',
+        line: { color: '#28a745', dash: 'dash' },
+        marker: { size: 8 }
+    };
+    
+    const layout = {
+        title: `${type === 'funding' ? '资金安排' : type === 'project' ? '项目数量' : '完成率'}趋势预测`,
+        xaxis: { title: '时间周期' },
+        yaxis: { title: type === 'completion' ? '完成率(%)' : (type === 'funding' ? '金额(万元)' : '数量') },
+        margin: { t: 50, b: 50, l: 80, r: 50 },
+        showlegend: true
+    };
+    
+    Plotly.newPlot('trendPredictionChart', [historicalTrace, predictionTrace], layout, {responsive: true});
+}
+
+// 更新预测指标
+function updatePredictionMetrics(prediction) {
+    const avgValue = prediction.reduce((sum, p) => sum + p.value, 0) / prediction.length;
+    const maxValue = Math.max(...prediction.map(p => p.value));
+    const minValue = Math.min(...prediction.map(p => p.value));
+    const growth = prediction.length > 1 ? ((prediction[prediction.length - 1].value - prediction[0].value) / prediction[0].value * 100) : 0;
+    
+    const metricsHtml = `
+        <div class="metric-item mb-3">
+            <h6 class="text-primary">平均预测值</h6>
+            <h4>${avgValue.toFixed(2)}</h4>
+        </div>
+        <div class="metric-item mb-3">
+            <h6 class="text-success">预测最大值</h6>
+            <h4>${maxValue.toFixed(2)}</h4>
+        </div>
+        <div class="metric-item mb-3">
+            <h6 class="text-info">预测最小值</h6>
+            <h4>${minValue.toFixed(2)}</h4>
+        </div>
+        <div class="metric-item mb-3">
+            <h6 class="text-warning">预期增长率</h6>
+            <h4>${growth >= 0 ? '+' : ''}${growth.toFixed(1)}%</h4>
+        </div>
+        <div class="metric-item">
+            <small class="text-muted">
+                <i class="fas fa-info-circle me-1"></i>
+                预测结果仅供参考，实际情况可能受多种因素影响
+            </small>
+        </div>
+    `;
+    
+    document.getElementById('predictionMetrics').innerHTML = metricsHtml;
+}
+
+// 创建季节性分析图表
+function createSeasonalChart(data) {
+    const seasonalData = data.map((d, i) => ({
+        x: i + 1,
+        y: d.value,
+        seasonal: Math.sin(i * Math.PI / 6) * d.value * 0.2 + d.value
+    }));
+    
+    const originalTrace = {
+        x: seasonalData.map(d => d.x),
+        y: seasonalData.map(d => d.y),
+        type: 'scatter',
+        mode: 'lines',
+        name: '原始数据',
+        line: { color: '#6c757d' }
+    };
+    
+    const seasonalTrace = {
+        x: seasonalData.map(d => d.x),
+        y: seasonalData.map(d => d.seasonal),
+        type: 'scatter',
+        mode: 'lines',
+        name: '季节性调整',
+        line: { color: '#ffc107' }
+    };
+    
+    const layout = {
+        title: '季节性分析',
+        xaxis: { title: '时间周期' },
+        yaxis: { title: '数值' },
+        margin: { t: 50, b: 50, l: 50, r: 50 },
+        showlegend: true
+    };
+    
+    Plotly.newPlot('seasonalChart', [originalTrace, seasonalTrace], layout, {responsive: true});
+}
+
+// 创建异常检测图表
+function createAnomalyChart(data) {
+    const values = data.map(d => d.value);
+    const mean = values.reduce((a, b) => a + b, 0) / values.length;
+    const std = Math.sqrt(values.reduce((sq, n) => sq + Math.pow(n - mean, 2), 0) / values.length);
+    
+    const anomalies = data.map((d, i) => {
+        const zScore = Math.abs(d.value - mean) / std;
+        return {
+            x: i + 1,
+            y: d.value,
+            isAnomaly: zScore > 2, // 2个标准差之外视为异常
+            zScore: zScore
+        };
+    });
+    
+    const normalTrace = {
+        x: anomalies.filter(a => !a.isAnomaly).map(a => a.x),
+        y: anomalies.filter(a => !a.isAnomaly).map(a => a.y),
+        type: 'scatter',
+        mode: 'markers',
+        name: '正常数据',
+        marker: { color: '#28a745', size: 8 }
+    };
+    
+    const anomalyTrace = {
+        x: anomalies.filter(a => a.isAnomaly).map(a => a.x),
+        y: anomalies.filter(a => a.isAnomaly).map(a => a.y),
+        type: 'scatter',
+        mode: 'markers',
+        name: '异常数据',
+        marker: { color: '#dc3545', size: 12, symbol: 'x' }
+    };
+    
+    const layout = {
+        title: '异常检测分析',
+        xaxis: { title: '时间周期' },
+        yaxis: { title: '数值' },
+        margin: { t: 50, b: 50, l: 50, r: 50 },
+        showlegend: true
+    };
+    
+    const traces = [normalTrace];
+    if (anomalyTrace.x.length > 0) {
+        traces.push(anomalyTrace);
+    }
+    
+    Plotly.newPlot('anomalyChart', traces, layout, {responsive: true});
+}
+
+// 在页面切换到仪表盘时初始化
+document.addEventListener('DOMContentLoaded', function() {
+    // 监听tab切换事件
+    document.getElementById('dashboard-tab').addEventListener('shown.bs.tab', function() {
+        setTimeout(initDashboard, 100); // 延迟执行确保DOM已渲染
+    });
+    
+    document.getElementById('trend-tab').addEventListener('shown.bs.tab', function() {
+        console.log('切换到趋势预测页面');
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+
+{% block title %}首页 - 在线AI城建系统{% endblock %}
+
+{% block content %}
+<div class="text-center mb-5">
+    <h1 class="display-4 fw-bold text-primary mb-3">
+        <i class="fas fa-city me-3"></i>
+        在线AI城建系统
+    </h1>
+    <p class="lead text-muted">智能化城市建设项目管理与数据分析平台</p>
+</div>
+
+<!-- 系统统计概览 -->
+<div class="row mb-5">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body text-center">
+                <i class="fas fa-project-diagram fa-2x mb-3"></i>
+                <h4 id="projectCount">0</h4>
+                <p class="mb-0">项目总数</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body text-center">
+                <i class="fas fa-coins fa-2x mb-3"></i>
+                <h4 id="fundingCount">0</h4>
+                <p class="mb-0">资金安排</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body text-center">
+                <i class="fas fa-dollar-sign fa-2x mb-3"></i>
+                <h4 id="totalAmount">0</h4>
+                <p class="mb-0">总投资额(万元)</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body text-center">
+                <i class="fas fa-cogs fa-2x mb-3"></i>
+                <h4 id="ongoingProjects">0</h4>
+                <p class="mb-0">在建项目</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 功能模块导航 -->
+<div class="row justify-content-center">
+    <div class="col-md-5 mb-4">
+        <div class="card module-card h-100" onclick="navigateToModule('/basic_data')" style="cursor: pointer;">
+            <div class="card-body d-flex flex-column justify-content-center align-items-center text-center">
+                <i class="fas fa-database module-icon"></i>
+                <h3 class="card-title mb-3">基础数据</h3>
+                <p class="card-text">
+                    管理项目基本信息、资金安排和项目总表<br>
+                    支持Excel批量导入导出、数据同步更新
+                </p>
+                <div class="mt-auto">
+                    <span class="btn btn-light btn-lg">
+                        <i class="fas fa-arrow-right me-2"></i>进入模块
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-5 mb-4">
+        <div class="card module-card h-100" onclick="navigateToModule('/smart_charts')" style="cursor: pointer;">
+            <div class="card-body d-flex flex-column justify-content-center align-items-center text-center">
+                <i class="fas fa-chart-bar module-icon"></i>
+                <h3 class="card-title mb-3">智能图表</h3>
+                <p class="card-text">
+                    基于项目总表的数据分析与可视化<br>
+                    支持拖拽式数据透视表和图表切换
+                </p>
+                <div class="mt-auto">
+                    <span class="btn btn-light btn-lg">
+                        <i class="fas fa-arrow-right me-2"></i>进入模块
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 系统功能特色 -->
+<div class="row mt-5">
+    <div class="col-12">
+        <h3 class="text-center mb-4">系统功能特色</h3>
+        <div class="row">
+            <div class="col-md-4 mb-3">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-file-excel text-success fa-3x mb-3"></i>
+                        <h5>Excel导入导出</h5>
+                        <p class="text-muted">支持批量导入导出，提高数据录入效率</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-sync-alt text-primary fa-3x mb-3"></i>
+                        <h5>数据同步</h5>
+                        <p class="text-muted">基于项目编码（可研）的智能数据关联与同步</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-filter text-warning fa-3x mb-3"></i>
+                        <h5>智能筛选</h5>
+                        <p class="text-muted">多维度筛选查询，快速定位目标数据</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 快速操作按钮 -->
+<div class="text-center mt-5">
+    <button class="btn btn-outline-primary btn-lg" onclick="refreshStats()">
+        <i class="fas fa-refresh me-2"></i>刷新统计
+    </button>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function navigateToModule(url) {
+    window.location.href = url;
+}
+
+// 加载统计数据
+function loadStats() {
+    Promise.all([
+        fetch('/api/project_info'),
+        fetch('/api/funding_arrangement')
+    ]).then(responses => {
+        return Promise.all(responses.map(r => r.json()));
+    }).then(([projects, fundings]) => {
+        document.getElementById('projectCount').textContent = projects.length;
+        document.getElementById('fundingCount').textContent = fundings.length;
+        
+        const totalAmount = projects.reduce((sum, p) => sum + (p.budget_amount || 0), 0);
+        document.getElementById('totalAmount').textContent = Math.round(totalAmount).toLocaleString();
+        
+        const ongoingCount = projects.filter(p => p.project_status === '在建').length;
+        document.getElementById('ongoingProjects').textContent = ongoingCount;
+    }).catch(error => {
+        console.error('加载统计数据失败:', error);
+    });
+}
+
+
+
+// 刷新统计
+function refreshStats() {
+    loadStats();
+}
+
+// 页面加载时获取统计数据
+document.addEventListener('DOMContentLoaded', loadStats);
+</script>
+{% endblock %}

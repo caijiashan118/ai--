@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+
+{% block title %}新增资金安排 - 在线AI城建系统{% endblock %}
+
+{% block extra_css %}
+<style>
+/* 确保所有输入字段完全可编辑 */
+input, select, textarea {
+    background-color: #ffffff !important;
+    border: 2px solid #28a745 !important;
+    padding: 8px 12px !important;
+    font-size: 14px !important;
+    border-radius: 4px !important;
+}
+
+input:focus, select:focus, textarea:focus {
+    border-color: #007bff !important;
+    box-shadow: 0 0 5px rgba(0, 123, 255, 0.5) !important;
+    outline: none !important;
+}
+
+.form-container {
+    background: white;
+    padding: 30px;
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.btn-custom {
+    background: linear-gradient(45deg, #28a745, #20c997);
+    border: none;
+    padding: 10px 30px;
+    color: white;
+    border-radius: 5px;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.btn-custom:hover {
+    background: linear-gradient(45deg, #218838, #1ba085);
+    color: white;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="form-container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-plus-circle me-2"></i>新增资金安排</h2>
+        <a href="/basic_data" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-1"></i>返回列表
+        </a>
+    </div>
+
+    <form id="fundingForm" method="POST" onsubmit="return submitFunding(event)">
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label class="form-label">项目编码（可研） *</label>
+                <select name="project_code" required id="fundingProjectCode">
+                    <option value="">请选择项目</option>
+                </select>
+            </div>
+            <div class="col-md-6 mb-3">
+                <label class="form-label">安排金额(万元) * <small class="text-muted">(支持负数)</small></label>
+                <input type="number" name="arrangement_amount" step="0.01" required 
+                       placeholder="请输入安排金额">
+            </div>
+            <div class="col-md-6 mb-3">
+                <label class="form-label">建设单位</label>
+                <input type="text" name="construction_unit" 
+                       placeholder="请输入建设单位">
+            </div>
+            <div class="col-md-6 mb-3">
+                <label class="form-label">项目主管部门</label>
+                <input type="text" name="supervisor_dept" 
+                       placeholder="请输入项目主管部门">
+            </div>
+            <div class="col-md-6 mb-3">
+                <label class="form-label">资金来源</label>
+                <input type="text" name="funding_source" 
+                       placeholder="请输入资金来源">
+            </div>
+            <div class="col-md-6 mb-3">
+                <label class="form-label">资金性质</label>
+                <input type="text" name="funding_nature" 
+                       placeholder="请输入资金性质">
+            </div>
+            <div class="col-md-6 mb-3">
+                <label class="form-label">财预文号</label>
+                <input type="text" name="budget_doc_no" 
+                       placeholder="请输入财预文号">
+            </div>
+            <div class="col-md-6 mb-3">
+                <label class="form-label">经办人</label>
+                <input type="text" name="handler" 
+                       placeholder="请输入经办人">
+            </div>
+            <div class="col-md-6 mb-3">
+                <label class="form-label">业务处</label>
+                <input type="text" name="handling_office" 
+                       placeholder="请输入业务处">
+            </div>
+            <div class="col-md-6 mb-3">
+                <label class="form-label">安排年度</label>
+                <input type="number" name="arrangement_year" min="2020" max="2030" 
+                       placeholder="请输入安排年度">
+            </div>
+            <div class="col-md-12 mb-3">
+                <label class="form-label">上级资金文号</label>
+                <input type="text" name="superior_doc_no" 
+                       placeholder="请输入上级资金文号">
+            </div>
+            <div class="col-md-12 mb-3">
+                <label class="form-label">备注</label>
+                <textarea name="remarks" rows="3" 
+                          placeholder="请输入备注信息"></textarea>
+            </div>
+        </div>
+
+        <div class="text-center mt-4">
+            <button type="submit" class="btn btn-custom me-3">
+                <i class="fas fa-save me-1"></i>保存资金安排
+            </button>
+            <a href="/basic_data" class="btn btn-secondary">
+                <i class="fas fa-times me-1"></i>取消
+            </a>
+        </div>
+    </form>
+
+    <div id="message" class="mt-3" style="display: none;"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// 页面加载时获取项目列表
+document.addEventListener('DOMContentLoaded', function() {
+    loadProjectOptions();
+});
+
+function loadProjectOptions() {
+    fetch('/api/project_info')
+        .then(response => response.json())
+        .then(data => {
+            const select = document.getElementById('fundingProjectCode');
+            select.innerHTML = '<option value="">请选择项目</option>';
+            data.forEach(project => {
+                const option = document.createElement('option');
+                option.value = project.project_code;
+                option.textContent = `${project.project_code} - ${project.project_name}`;
+                option.dataset.projectName = project.project_name;
+                option.dataset.constructionUnit = project.construction_unit;
+                option.dataset.supervisorDept = project.supervisor_dept;
+                select.appendChild(option);
+            });
+        })
+        .catch(error => console.error('加载项目列表失败:', error));
+}
+
+// 项目选择改变时自动填充相关信息
+document.getElementById('fundingProjectCode').addEventListener('change', function() {
+    const selectedOption = this.options[this.selectedIndex];
+    if (selectedOption.dataset.projectName) {
+        document.querySelector('input[name="construction_unit"]').value = selectedOption.dataset.constructionUnit || '';
+        document.querySelector('input[name="supervisor_dept"]').value = selectedOption.dataset.supervisorDept || '';
+    }
+});
+
+function submitFunding(event) {
+    event.preventDefault();
+    
+    const form = document.getElementById('fundingForm');
+    const formData = new FormData(form);
+    const data = Object.fromEntries(formData.entries());
+    
+    // 自动填充项目名称
+    const projectSelect = document.getElementById('fundingProjectCode');
+    const selectedOption = projectSelect.options[projectSelect.selectedIndex];
+    if (selectedOption && selectedOption.dataset.projectName) {
+        data.project_name = selectedOption.dataset.projectName;
+    }
+    
+    // 显示加载状态
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>保存中...';
+    submitBtn.disabled = true;
+    
+    fetch('/api/add_funding', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        const messageDiv = document.getElementById('message');
+        if (result.success) {
+            messageDiv.className = 'alert alert-success';
+            messageDiv.innerHTML = '<i class="fas fa-check-circle me-2"></i>' + result.message;
+            messageDiv.style.display = 'block';
+            
+            // 3秒后跳转回列表页
+            setTimeout(() => {
+                window.location.href = '/basic_data';
+            }, 2000);
+        } else {
+            messageDiv.className = 'alert alert-danger';
+            messageDiv.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>添加失败：' + result.message;
+            messageDiv.style.display = 'block';
+        }
+    })
+    .catch(error => {
+        const messageDiv = document.getElementById('message');
+        messageDiv.className = 'alert alert-danger';
+        messageDiv.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>添加失败：' + error.message;
+        messageDiv.style.display = 'block';
+    })
+    .finally(() => {
+        // 恢复按钮状态
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+    });
+    
+    return false;
+}
+</script>
+{% endblock %}
