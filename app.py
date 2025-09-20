@@ -2482,4 +2482,12 @@ def get_dashboard_stats():
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-    app.run(host='0.0.0.0', port=8080, debug=True, use_reloader=False)
+    print("🚀 AI城建系统正在启动...")
+    print("📡 服务器配置:")
+    print("   - 主机: 0.0.0.0 (所有接口)")
+    print("   - 端口: 5000")
+    print("🌐 访问地址:")
+    print("   - http://localhost:5000")
+    print("   - http://127.0.0.1:5000")
+    print("✅ 系统启动完成，请使用上述地址访问")
+    app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False, threaded=True)
