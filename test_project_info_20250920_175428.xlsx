@@ -1,4 +1,0 @@
-{
-  "message": "\u5bfc\u51fa\u5931\u8d25: \"None of [Index(['project_name', 'project_code', 'region', 'project_type',\\n       'investment_mode', 'construction_unit', 'supervisor_dept',\\n       'budget_amount', 'contract_amount', 'project_status', 'approval_date',\\n       'start_date', 'end_date', 'budget_code', 'budget_project_name',\\n       'handling_office', 'remarks'],\\n      dtype='object')] are in the [columns]\"",
-  "success": false
-}

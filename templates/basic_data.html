@@ -624,6 +624,8 @@ input[type="date"]:focus, input[type="number"]:focus {
     color: #6c757d;
 }
 
+}
+
 /* 多选提示样式 */
 .text-muted small {
     font-size: 0.65rem;
@@ -1037,6 +1039,10 @@ input[type="date"]:focus, input[type="number"]:focus {
                                             <i class="fas fa-chevron-down"></i>
                                         </button>
                                     </h6>
+                                    <small class="text-light">
+                                        <i class="fas fa-info-circle me-1"></i>
+                                        此功能用于控制"项目总表"标签页中显示的字段
+                                    </small>
                                 </div>
                                 <div class="collapse" id="columnSelector">
                                     <div class="card-body">
@@ -1059,18 +1065,21 @@ input[type="date"]:focus, input[type="number"]:focus {
                                                     <button type="button" class="btn btn-outline-success btn-sm" onclick="applyColumnSelection()">
                                                         <i class="fas fa-eye me-1"></i>应用字段选择
                                                     </button>
-                                        <button type="button" class="btn btn-outline-info btn-sm" onclick="exportSelectedColumns()">
-                                            <i class="fas fa-download me-1"></i>导出选中字段
-                                        </button>
-                                        <button type="button" class="btn btn-outline-warning btn-sm" onclick="resetColumnSelection()">
-                                            <i class="fas fa-undo me-1"></i>重置字段
-                                        </button>
-                                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="syncColumnSelectionToCharts()">
-                                            <i class="fas fa-sync me-1"></i>同步到图表
-                                        </button>
-                                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="manualInitializeColumnSelector()">
-                                            <i class="fas fa-cog me-1"></i>手动初始化
-                                        </button>
+                                                    <button type="button" class="btn btn-outline-info btn-sm" onclick="exportSelectedColumns()">
+                                                        <i class="fas fa-download me-1"></i>导出选中字段
+                                                    </button>
+                                                    <button type="button" class="btn btn-outline-warning btn-sm" onclick="resetColumnSelection()">
+                                                        <i class="fas fa-undo me-1"></i>重置字段
+                                                    </button>
+                                                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="syncColumnSelectionToCharts()">
+                                                        <i class="fas fa-sync me-1"></i>同步到图表
+                                                    </button>
+                                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="manualInitializeColumnSelector()">
+                                                        <i class="fas fa-cog me-1"></i>手动初始化
+                                                    </button>
+                                                    <button type="button" class="btn btn-outline-warning btn-sm" onclick="checkFieldSelectorStatus()">
+                                                        <i class="fas fa-info-circle me-1"></i>状态检查
+                                                    </button>
                                                 </div>
                                                 <div class="mt-2">
                                                     <small class="text-muted">
@@ -2252,6 +2261,28 @@ $(document).ready(function() {
             }, 500);
         });
     }
+    
+    // 立即尝试初始化字段选择器（不等待标签页切换）
+    setTimeout(() => {
+        console.log('立即尝试初始化字段选择器...');
+        const success = initializeColumnSelector();
+        if (!success) {
+            console.log('立即初始化失败，将在1秒后重试...');
+            setTimeout(() => {
+                initializeColumnSelector();
+            }, 1000);
+        } else {
+            console.log('字段选择器初始化成功，可用字段数:', availableColumns.length);
+        }
+    }, 100);
+    
+    // 额外的初始化尝试，确保字段选择器能够正常工作
+    setTimeout(() => {
+        if (availableColumns.length === 0) {
+            console.log('字段选择器仍未初始化，进行最后一次尝试...');
+            initializeColumnSelector();
+        }
+    }, 2000);
 });
 
 function initializeTables() {
@@ -4139,11 +4170,23 @@ function deleteSummary(id) {
 // 更新导出函数以支持项目总表
 function exportToExcel(tableType) {
     if (tableType === 'summary') {
+        // 获取当前筛选条件
+        let filters = {};
+        
+        try {
+            // 使用现有的getFilterConditions函数获取筛选条件
+            filters = getFilterConditions();
+            console.log('导出时使用的筛选条件:', filters);
+        } catch (error) {
+            console.warn('获取筛选条件失败:', error);
+            // 如果获取失败，使用空筛选条件（导出所有数据）
+            filters = {};
+        }
+        
         // 使用新的导出API
         const exportData = {
-            format: 'excel',
-            data_source: 'summary',
-            data_type: 'all'
+            table_type: 'summary',
+            filters: filters
         };
         
         fetch('/api/export_filtered_data', {
@@ -5102,8 +5145,65 @@ function clearAllColumns() {
 
 // 应用字段选择
 function applyColumnSelection() {
+    // 检查是否在项目总表标签页
+    const summaryTab = document.getElementById('summary-tab');
+    const summaryContent = document.getElementById('summary');
+    
+    if (!summaryTab || !summaryContent || !summaryContent.classList.contains('active')) {
+        showToast('请先切换到"项目总表"标签页，然后应用字段选择', 'warning');
+        return;
+    }
+    
+    // 检查表格是否存在，如果不存在则尝试初始化
     if (!summaryTable) {
-        showToast('表格未初始化，无法应用字段选择', 'error');
+        // 检查表格元素是否存在
+        const tableElement = document.getElementById('summaryTable');
+        if (!tableElement) {
+            showToast('表格元素不存在，无法应用字段选择', 'error');
+            return;
+        }
+        
+        showToast('表格未初始化，正在尝试初始化...', 'info');
+        
+        // 尝试初始化表格
+        if (typeof loadProjectSummary === 'function') {
+            loadProjectSummary();
+            setTimeout(() => {
+                if (summaryTable) {
+                    applyColumnSelection();
+                } else {
+                    showToast('表格初始化失败，无法应用字段选择', 'error');
+                }
+            }, 1000);
+        } else {
+            // 如果loadProjectSummary函数不存在，尝试直接初始化表格
+            try {
+                if ($.fn.DataTable && !$.fn.DataTable.isDataTable('#summaryTable')) {
+                    summaryTable = $('#summaryTable').DataTable({
+                        deferRender: true,
+                        processing: false,
+                        paging: true,
+                        searching: true,
+                        ordering: true,
+                        info: true,
+                        autoWidth: false,
+                        scrollX: true,
+                        scrollY: 400,
+                        language: {
+                            url: 'https://cdn.datatables.net/plug-ins/1.13.4/i18n/zh.json'
+                        }
+                    });
+                    showToast('表格初始化成功', 'success');
+                    // 递归调用以应用字段选择
+                    setTimeout(() => applyColumnSelection(), 100);
+                } else {
+                    showToast('表格初始化失败，无法应用字段选择', 'error');
+                }
+            } catch (error) {
+                console.error('表格初始化失败:', error);
+                showToast('表格初始化失败: ' + error.message, 'error');
+            }
+        }
         return;
     }
     
@@ -5423,6 +5523,37 @@ function manualInitializeColumnSelector() {
         console.error('手动初始化字段选择器失败:', error);
         showToast('手动初始化失败: ' + error.message, 'error');
     }
+}
+
+// 检查字段选择器状态
+function checkFieldSelectorStatus() {
+    console.log('=== 字段选择器状态检查 ===');
+    console.log('availableColumns长度:', availableColumns.length);
+    console.log('columnVisibility键数量:', Object.keys(columnVisibility).length);
+    console.log('summaryTable状态:', summaryTable ? '已初始化' : '未初始化');
+    
+    const container = document.getElementById('columnSelectorButtons');
+    console.log('容器状态:', container ? '存在' : '不存在');
+    if (container) {
+        console.log('容器子元素数量:', container.children.length);
+    }
+    
+    if (availableColumns.length > 0) {
+        console.log('可用字段:');
+        availableColumns.forEach(col => {
+            console.log(`  - ${col.data}: ${col.title} (${columnVisibility[col.data] ? '显示' : '隐藏'})`);
+        });
+    }
+    
+    // 显示状态信息给用户
+    const statusInfo = `
+        字段选择器状态：
+        - 可用字段数: ${availableColumns.length}
+        - 可见性状态数: ${Object.keys(columnVisibility).length}
+        - 表格状态: ${summaryTable ? '已初始化' : '未初始化'}
+        - 容器状态: ${container ? '存在' : '不存在'}
+    `;
+    showToast(statusInfo, 'info');
 }
 
 // 检查数据一致性
