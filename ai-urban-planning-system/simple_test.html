@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>简单数据测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .card { border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <h1>AI城建系统数据测试</h1>
+    
+    <div class="card">
+        <h3>API测试</h3>
+        <button onclick="testAPIs()">测试所有API</button>
+        <div id="apiResults"></div>
+    </div>
+    
+    <div class="card">
+        <h3>项目信息数据</h3>
+        <button onclick="loadProjectData()">加载项目数据</button>
+        <div id="projectData"></div>
+    </div>
+    
+    <div class="card">
+        <h3>资金安排数据</h3>
+        <button onclick="loadFundingData()">加载资金数据</button>
+        <div id="fundingData"></div>
+    </div>
+
+    <script>
+        function testAPIs() {
+            const results = document.getElementById('apiResults');
+            results.innerHTML = '<p>测试中...</p>';
+            
+            const apis = [
+                { name: '旧项目API', url: '/api/project_info' },
+                { name: '新项目分页API', url: '/api/project_info_page' },
+                { name: '旧资金API', url: '/api/funding_arrangement' },
+                { name: '新资金分页API', url: '/api/funding_arrangement_page' }
+            ];
+            
+            let html = '<h4>API测试结果:</h4>';
+            
+            apis.forEach(api => {
+                fetch(api.url)
+                    .then(response => response.json())
+                    .then(data => {
+                        const count = Array.isArray(data) ? data.length : (data.data ? data.data.length : 0);
+                        html += `<p class="success">✅ ${api.name}: ${count} 条记录</p>`;
+                        results.innerHTML = html;
+                    })
+                    .catch(error => {
+                        html += `<p class="error">❌ ${api.name}: 错误 - ${error.message}</p>`;
+                        results.innerHTML = html;
+                    });
+            });
+        }
+        
+        function loadProjectData() {
+            const container = document.getElementById('projectData');
+            container.innerHTML = '<p>加载中...</p>';
+            
+            fetch('/api/project_info_page')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.data && data.data.length > 0) {
+                        let html = `<h4>项目信息 (${data.data.length} 条):</h4>`;
+                        html += '<table><tr><th>项目名称</th><th>项目编码</th><th>区域</th><th>状态</th></tr>';
+                        
+                        data.data.slice(0, 10).forEach(project => {
+                            html += `<tr>
+                                <td>${project.project_name || ''}</td>
+                                <td>${project.project_code || ''}</td>
+                                <td>${project.region || ''}</td>
+                                <td>${project.project_status || ''}</td>
+                            </tr>`;
+                        });
+                        
+                        html += '</table>';
+                        container.innerHTML = html;
+                    } else {
+                        container.innerHTML = '<p class="error">没有数据</p>';
+                    }
+                })
+                .catch(error => {
+                    container.innerHTML = `<p class="error">加载失败: ${error.message}</p>`;
+                });
+        }
+        
+        function loadFundingData() {
+            const container = document.getElementById('fundingData');
+            container.innerHTML = '<p>加载中...</p>';
+            
+            fetch('/api/funding_arrangement_page')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.data && data.data.length > 0) {
+                        let html = `<h4>资金安排 (${data.data.length} 条):</h4>`;
+                        html += '<table><tr><th>项目名称</th><th>项目编码</th><th>安排金额</th><th>资金来源</th></tr>';
+                        
+                        data.data.slice(0, 10).forEach(funding => {
+                            html += `<tr>
+                                <td>${funding.project_name || ''}</td>
+                                <td>${funding.project_code || ''}</td>
+                                <td>${funding.arrangement_amount || ''}</td>
+                                <td>${funding.funding_source || ''}</td>
+                            </tr>`;
+                        });
+                        
+                        html += '</table>';
+                        container.innerHTML = html;
+                    } else {
+                        container.innerHTML = '<p class="error">没有数据</p>';
+                    }
+                })
+                .catch(error => {
+                    container.innerHTML = `<p class="error">加载失败: ${error.message}</p>`;
+                });
+        }
+        
+        // 页面加载时自动测试
+        window.onload = function() {
+            testAPIs();
+            loadProjectData();
+            loadFundingData();
+        };
+    </script>
+</body>
+</html>

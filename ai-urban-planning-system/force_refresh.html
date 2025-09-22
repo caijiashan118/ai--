@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>强制刷新测试 - AI城建系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/datatables.net-bs5@1.13.4/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/datatables.net@1.13.4/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/datatables.net-bs5@1.13.4/js/dataTables.bootstrap5.min.js"></script>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1>强制刷新测试页面</h1>
+        <p class="text-muted">此页面强制使用分页API，绕过浏览器缓存</p>
+        
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>项目信息表</h5>
+                        <button class="btn btn-primary btn-sm" onclick="loadData()">刷新数据</button>
+                    </div>
+                    <div class="card-body">
+                        <table id="projectTable" class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>项目名称</th>
+                                    <th>项目编码</th>
+                                    <th>区域</th>
+                                    <th>项目类型</th>
+                                    <th>投资模式</th>
+                                    <th>建设单位</th>
+                                    <th>项目状态</th>
+                                    <th>预算金额</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>调试信息</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="debugInfo"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let projectTable;
+        
+        $(document).ready(function() {
+            console.log('页面加载完成，初始化表格...');
+            
+            // 初始化DataTable
+            projectTable = $('#projectTable').DataTable({
+                processing: true,
+                language: {
+                    "sProcessing": "处理中...",
+                    "sLengthMenu": "显示 _MENU_ 项",
+                    "sZeroRecords": "没有数据",
+                    "sInfo": "显示 _START_ 至 _END_ 项，共 _TOTAL_ 项",
+                    "sInfoEmpty": "显示 0 至 0 项，共 0 项",
+                    "sInfoFiltered": "(从 _MAX_ 项结果中过滤)",
+                    "sSearch": "搜索:",
+                    "oPaginate": {
+                        "sFirst": "首页",
+                        "sPrevious": "上页",
+                        "sNext": "下页",
+                        "sLast": "末页"
+                    }
+                }
+            });
+            
+            // 立即加载数据
+            loadData();
+        });
+        
+        function loadData() {
+            console.log('开始加载数据...');
+            addDebugInfo('开始加载数据...');
+            
+            // 使用分页API
+            fetch('/api/project_info_page?' + new Date().getTime()) // 添加时间戳防止缓存
+                .then(response => {
+                    console.log('API响应状态:', response.status);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('API响应数据:', data);
+                    addDebugInfo(`API响应: 状态码200, 数据类型: ${typeof data}, 记录数: ${data.data ? data.data.length : 'N/A'}`);
+                    
+                    if (data.data && Array.isArray(data.data)) {
+                        // 清空表格
+                        projectTable.clear();
+                        
+                        // 添加数据
+                        data.data.forEach(project => {
+                            projectTable.row.add([
+                                project.project_name || '',
+                                project.project_code || '',
+                                project.region || '',
+                                project.project_type || '',
+                                project.investment_mode || '',
+                                project.construction_unit || '',
+                                project.project_status || '',
+                                project.budget_amount ? project.budget_amount.toLocaleString() + ' 万元' : ''
+                            ]);
+                        });
+                        
+                        // 重绘表格
+                        projectTable.draw();
+                        
+                        addDebugInfo(`成功加载 ${data.data.length} 条项目记录`);
+                        console.log('数据加载完成，记录数:', data.data.length);
+                    } else {
+                        addDebugInfo('数据格式错误或为空');
+                        console.error('数据格式错误:', data);
+                    }
+                })
+                .catch(error => {
+                    console.error('加载数据失败:', error);
+                    addDebugInfo(`加载失败: ${error.message}`);
+                });
+        }
+        
+        function addDebugInfo(message) {
+            const debugDiv = document.getElementById('debugInfo');
+            const timestamp = new Date().toLocaleTimeString();
+            debugDiv.innerHTML += `<div class="text-muted small">[${timestamp}] ${message}</div>`;
+        }
+    </script>
+</body>
+</html>

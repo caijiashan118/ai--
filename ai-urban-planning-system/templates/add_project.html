@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+
+{% block title %}新增项目 - 在线AI城建系统{% endblock %}
+
+{% block extra_css %}
+<style>
+/* 确保所有输入字段完全可编辑 */
+input, select, textarea {
+    background-color: #ffffff !important;
+    border: 2px solid #28a745 !important;
+    padding: 8px 12px !important;
+    font-size: 14px !important;
+    border-radius: 4px !important;
+}
+
+input:focus, select:focus, textarea:focus {
+    border-color: #007bff !important;
+    box-shadow: 0 0 5px rgba(0, 123, 255, 0.5) !important;
+    outline: none !important;
+}
+
+.form-container {
+    background: white;
+    padding: 30px;
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.btn-custom {
+    background: linear-gradient(45deg, #28a745, #20c997);
+    border: none;
+    padding: 10px 30px;
+    color: white;
+    border-radius: 5px;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.btn-custom:hover {
+    background: linear-gradient(45deg, #218838, #1ba085);
+    color: white;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="form-container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-plus-circle me-2"></i>新增项目</h2>
+        <a href="/basic_data" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-1"></i>返回列表
+        </a>
+    </div>
+
+    <form id="projectForm" method="POST" onsubmit="return submitProject(event)">
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label class="form-label">项目名称</label>
+                <input type="text" name="project_name" 
+                       placeholder="请输入项目名称（可留空）"
+                       autofocus>
+            </div>
+            <div class="col-md-6 mb-3">
+                <label class="form-label">项目编码（可研）</label>
+                <input type="text" name="project_code" 
+                       placeholder="请输入项目编码（可研）（可留空）">
+            </div>
+            <div class="col-md-6 mb-3">
+                <label class="form-label">概算编码</label>
+                <input type="text" name="budget_code" 
+                       placeholder="请输入概算编码">
+            </div>
+            <div class="col-md-12 mb-3">
+                <label class="form-label">概算项目名称</label>
+                <input type="text" name="budget_project_name" 
+                       placeholder="请输入概算项目名称">
+            </div>
+            <div class="col-md-6 mb-3">
+                <label class="form-label">所属区域</label>
+                <select name="region">
+                    <option value="">请选择</option>
+                    <option value="市辖区">市辖区</option>
+                    <option value="开发区">开发区</option>
+                    <option value="高新区">高新区</option>
+                    <option value="经开区">经开区</option>
+                    <option value="新区">新区</option>
+                    <option value="工业园区">工业园区</option>
+                </select>
+            </div>
+            <div class="col-md-6 mb-3">
+                <label class="form-label">投资模式</label>
+                <select name="investment_mode">
+                    <option value="">请选择</option>
+                    <option value="政府投资">政府投资</option>
+                    <option value="PPP模式">PPP模式</option>
+                    <option value="企业投资">企业投资</option>
+                    <option value="合作投资">合作投资</option>
+                    <option value="混合投资">混合投资</option>
+                </select>
+            </div>
+            <div class="col-md-6 mb-3">
+                <label class="form-label">项目类型</label>
+                <select name="project_type">
+                    <option value="">请选择</option>
+                    <option value="基础设施">基础设施</option>
+                    <option value="市政工程">市政工程</option>
+                    <option value="交通建设">交通建设</option>
+                    <option value="环保项目">环保项目</option>
+                    <option value="社会事业">社会事业</option>
+                    <option value="产业项目">产业项目</option>
+                </select>
+            </div>
+            <div class="col-md-6 mb-3">
+                <label class="form-label">建设单位</label>
+                <input type="text" name="construction_unit" 
+                       placeholder="请输入建设单位">
+            </div>
+            <div class="col-md-12 mb-3">
+                <label class="form-label">项目主管部门</label>
+                <input type="text" name="supervisor_dept" 
+                       placeholder="请输入项目主管部门">
+            </div>
+            <div class="col-md-6 mb-3">
+                <label class="form-label">立项时间</label>
+                <input type="date" name="approval_date">
+            </div>
+            <div class="col-md-6 mb-3">
+                <label class="form-label">概算批复金额(万元)</label>
+                <input type="number" name="budget_amount" step="0.01" 
+                       placeholder="请输入概算批复金额（可留空）">
+            </div>
+            <div class="col-md-6 mb-3">
+                <label class="form-label">签订合同金额(万元) <small class="text-muted">(必须大于0)</small></label>
+                <input type="number" name="contract_amount" step="0.01" min="0.01" 
+                       placeholder="请输入签订合同金额（必须大于0）">
+            </div>
+            <div class="col-md-6 mb-3">
+                <label class="form-label">项目状态</label>
+                <select name="project_status">
+                    <option value="">请选择</option>
+                    <option value="在建">在建</option>
+                    <option value="筹建">筹建</option>
+                    <option value="已完工">已完工</option>
+                    <option value="暂停">暂停</option>
+                    <option value="规划中">规划中</option>
+                </select>
+            </div>
+            <div class="col-md-6 mb-3">
+                <label class="form-label">开工时间</label>
+                <input type="date" name="start_date">
+            </div>
+            <div class="col-md-6 mb-3">
+                <label class="form-label">完工时间</label>
+                <input type="date" name="end_date">
+            </div>
+        </div>
+
+        <div class="text-center mt-4">
+            <button type="submit" class="btn btn-custom me-3">
+                <i class="fas fa-save me-1"></i>保存项目
+            </button>
+            <a href="/basic_data" class="btn btn-secondary">
+                <i class="fas fa-times me-1"></i>取消
+            </a>
+        </div>
+    </form>
+
+    <div id="message" class="mt-3" style="display: none;"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function submitProject(event) {
+    event.preventDefault();
+    
+    const form = document.getElementById('projectForm');
+    const formData = new FormData(form);
+    const data = Object.fromEntries(formData.entries());
+    
+    // 验证合同金额必须大于零（如果提供）
+    if (data.contract_amount) {
+        const contractAmount = parseFloat(data.contract_amount);
+        if (isNaN(contractAmount) || contractAmount <= 0) {
+            alert('签订合同金额必须大于零');
+            return;
+        }
+    }
+    
+    // 显示加载状态
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>保存中...';
+    submitBtn.disabled = true;
+    
+    fetch('/api/add_project', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        const messageDiv = document.getElementById('message');
+        if (result.success) {
+            messageDiv.className = 'alert alert-success';
+            messageDiv.innerHTML = '<i class="fas fa-check-circle me-2"></i>' + result.message;
+            messageDiv.style.display = 'block';
+            
+            // 3秒后跳转回列表页
+            setTimeout(() => {
+                window.location.href = '/basic_data';
+            }, 2000);
+        } else {
+            messageDiv.className = 'alert alert-danger';
+            messageDiv.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>添加失败：' + result.message;
+            messageDiv.style.display = 'block';
+        }
+    })
+    .catch(error => {
+        const messageDiv = document.getElementById('message');
+        messageDiv.className = 'alert alert-danger';
+        messageDiv.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>添加失败：' + error.message;
+        messageDiv.style.display = 'block';
+    })
+    .finally(() => {
+        // 恢复按钮状态
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+    });
+    
+    return false;
+}
+
+// 页面加载完成后聚焦到第一个输入框
+document.addEventListener('DOMContentLoaded', function() {
+    const firstInput = document.querySelector('input[name="project_name"]');
+    if (firstInput) {
+        setTimeout(() => {
+            firstInput.focus();
+            firstInput.select();
+        }, 100);
+    }
+});
+</script>
+{% endblock %}

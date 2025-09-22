@@ -1,0 +1,412 @@
+{% extends "base.html" %}
+
+{% block title %}用户管理 - AI城建系统{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-users me-2"></i>用户管理</h2>
+                <button class="btn btn-primary" onclick="showAddUserModal()">
+                    <i class="fas fa-plus me-1"></i>新增用户
+                </button>
+            </div>
+
+            <!-- 用户列表 -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="row align-items-center">
+                        <div class="col-md-6">
+                            <h5 class="mb-0">用户列表</h5>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="userSearch" placeholder="搜索用户...">
+                                <button class="btn btn-outline-secondary" onclick="searchUsers()">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table id="userTable" class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>用户名</th>
+                                    <th>真实姓名</th>
+                                    <th>邮箱</th>
+                                    <th>部门</th>
+                                    <th>职位</th>
+                                    <th>状态</th>
+                                    <th>最后登录</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- 用户数据将通过JavaScript加载 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 新增/编辑用户模态框 -->
+<div class="modal fade" id="userModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="userModalTitle">新增用户</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="userForm">
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="username" class="form-label">用户名 *</label>
+                                <input type="text" class="form-control" id="username" name="username" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="email" class="form-label">邮箱 *</label>
+                                <input type="email" class="form-control" id="email" name="email" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="real_name" class="form-label">真实姓名 *</label>
+                                <input type="text" class="form-control" id="real_name" name="real_name" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="password" class="form-label">密码 *</label>
+                                <input type="password" class="form-control" id="password" name="password" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="department" class="form-label">部门</label>
+                                <input type="text" class="form-control" id="department" name="department">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="position" class="form-label">职位</label>
+                                <input type="text" class="form-control" id="position" name="position">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="phone" class="form-label">联系电话</label>
+                                <input type="tel" class="form-control" id="phone" name="phone">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="is_active" class="form-label">状态</label>
+                                <select class="form-select" id="is_active" name="is_active">
+                                    <option value="true">激活</option>
+                                    <option value="false">未激活</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary" id="saveUserBtn">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 角色分配模态框 -->
+<div class="modal fade" id="roleModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">分配角色</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="roleList">
+                    <!-- 角色列表将通过JavaScript加载 -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveUserRoles()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let userTable;
+let currentEditingUserId = null;
+let currentUserRoles = [];
+
+$(document).ready(function() {
+    initializeUserTable();
+    loadUsers();
+    
+    // 绑定表单提交事件
+    $('#userForm').on('submit', function(e) {
+        e.preventDefault();
+        saveUser();
+    });
+});
+
+function initializeUserTable() {
+    userTable = $('#userTable').DataTable({
+        processing: true,
+        serverSide: false,
+        responsive: true,
+        order: [[0, 'asc']],
+        columnDefs: [
+            { orderable: false, targets: -1 }
+        ],
+        language: {
+            url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/zh.json'
+        }
+    });
+}
+
+function loadUsers() {
+    fetch('/api/users')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                userTable.clear().rows.add(data.users).draw();
+            } else {
+                showAlert('加载用户列表失败: ' + data.message, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('加载用户失败:', error);
+            showAlert('加载用户失败', 'error');
+        });
+}
+
+function showAddUserModal() {
+    currentEditingUserId = null;
+    $('#userModalTitle').text('新增用户');
+    $('#userForm')[0].reset();
+    $('#password').prop('required', true);
+    $('#userModal').modal('show');
+}
+
+function editUser(userId) {
+    currentEditingUserId = userId;
+    $('#userModalTitle').text('编辑用户');
+    $('#password').prop('required', false);
+    
+    fetch(`/api/users/${userId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const user = data.user;
+                $('#username').val(user.username);
+                $('#email').val(user.email);
+                $('#real_name').val(user.real_name);
+                $('#department').val(user.department || '');
+                $('#position').val(user.position || '');
+                $('#phone').val(user.phone || '');
+                $('#is_active').val(user.is_active ? 'true' : 'false');
+                $('#userModal').modal('show');
+            } else {
+                showAlert('获取用户信息失败: ' + data.message, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('获取用户失败:', error);
+            showAlert('获取用户失败', 'error');
+        });
+}
+
+function saveUser() {
+    const formData = new FormData(document.getElementById('userForm'));
+    const data = Object.fromEntries(formData.entries());
+    
+    const url = currentEditingUserId ? `/api/users/${currentEditingUserId}` : '/api/users';
+    const method = currentEditingUserId ? 'PUT' : 'POST';
+    
+    // 如果是编辑且密码为空，删除密码字段
+    if (currentEditingUserId && !data.password) {
+        delete data.password;
+    }
+    
+    fetch(url, {
+        method: method,
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            showAlert(result.message, 'success');
+            $('#userModal').modal('hide');
+            loadUsers();
+        } else {
+            showAlert(result.message, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('保存用户失败:', error);
+        showAlert('保存用户失败', 'error');
+    });
+}
+
+function deleteUser(userId) {
+    if (!confirm('确定要删除这个用户吗？')) {
+        return;
+    }
+    
+    fetch(`/api/users/${userId}`, {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            showAlert('用户删除成功', 'success');
+            loadUsers();
+        } else {
+            showAlert(result.message, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('删除用户失败:', error);
+        showAlert('删除用户失败', 'error');
+    });
+}
+
+function assignRoles(userId) {
+    currentEditingUserId = userId;
+    
+    // 加载角色列表
+    fetch('/api/roles')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                loadUserRoles(userId, data.roles);
+            } else {
+                showAlert('加载角色列表失败: ' + data.message, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('加载角色失败:', error);
+            showAlert('加载角色失败', 'error');
+        });
+}
+
+function loadUserRoles(userId, roles) {
+    // 获取用户当前角色
+    fetch(`/api/users/${userId}/roles`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                currentUserRoles = data.roles || [];
+                renderRoleList(roles);
+                $('#roleModal').modal('show');
+            } else {
+                showAlert('获取用户角色失败: ' + data.message, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('获取用户角色失败:', error);
+            showAlert('获取用户角色失败', 'error');
+        });
+}
+
+function renderRoleList(roles) {
+    const roleList = document.getElementById('roleList');
+    roleList.innerHTML = '';
+    
+    roles.forEach(role => {
+        const isAssigned = currentUserRoles.some(userRole => userRole.role_id === role.id);
+        
+        const roleItem = document.createElement('div');
+        roleItem.className = 'form-check mb-2';
+        roleItem.innerHTML = `
+            <input class="form-check-input" type="checkbox" value="${role.id}" id="role_${role.id}" ${isAssigned ? 'checked' : ''}>
+            <label class="form-check-label" for="role_${role.id}">
+                <strong>${role.role_name}</strong>
+                <small class="text-muted d-block">${role.description}</small>
+            </label>
+        `;
+        roleList.appendChild(roleItem);
+    });
+}
+
+function saveUserRoles() {
+    const checkboxes = document.querySelectorAll('#roleList input[type="checkbox"]:checked');
+    const roleIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+    
+    fetch(`/api/users/${currentEditingUserId}/roles`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ role_ids: roleIds })
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            showAlert('角色分配成功', 'success');
+            $('#roleModal').modal('hide');
+        } else {
+            showAlert(result.message, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('保存用户角色失败:', error);
+        showAlert('保存用户角色失败', 'error');
+    });
+}
+
+function searchUsers() {
+    const searchTerm = document.getElementById('userSearch').value;
+    userTable.search(searchTerm).draw();
+}
+
+function showAlert(message, type) {
+    const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+    const alert = document.createElement('div');
+    alert.className = `alert ${alertClass} alert-dismissible fade show position-fixed`;
+    alert.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    alert.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.body.appendChild(alert);
+    
+    setTimeout(() => {
+        if (alert.parentNode) {
+            alert.parentNode.removeChild(alert);
+        }
+    }, 5000);
+}
+</script>
+{% endblock %}

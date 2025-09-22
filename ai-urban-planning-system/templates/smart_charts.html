@@ -1,0 +1,1679 @@
+{% extends "base.html" %}
+
+{% block title %}智能图表{% endblock %}
+
+{% block extra_css %}
+<style>
+.drop-zone {
+    border: 2px dashed #ccc;
+    border-radius: 5px;
+}
+
+.drop-zone.drag-over {
+    border-color: #007bff;
+    background-color: rgba(0, 123, 255, 0.1);
+}
+
+.field-item {
+    background: #667eea;
+    color: white;
+    padding: 8px 12px;
+    margin: 5px;
+    border-radius: 20px;
+    cursor: move;
+    display: inline-block;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+.field-item:hover {
+    background: #5a6fd8;
+}
+
+.field-item:active {
+    background: #4c63d2;
+}
+
+.field-item.dragging {
+    opacity: 0.5;
+}
+
+/* 数据透视表样式 */
+.pivot-table {
+    font-size: 16px;
+    table-layout: fixed;
+    width: 100%;
+    max-width: 100%;
+    margin: 0 auto;
+    background-color: #ffffff;
+}
+
+.pivot-table th {
+    min-width: 100px;
+    max-width: 200px;
+    word-wrap: break-word;
+    vertical-align: middle;
+    padding: 12px 8px;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.pivot-table td {
+    min-width: 80px;
+    max-width: 150px;
+    word-wrap: break-word;
+    vertical-align: middle;
+    padding: 10px 8px;
+    font-size: 15px;
+}
+
+.pivot-table .table-info {
+    background-color: #e3f2fd !important;
+    font-weight: bold;
+}
+
+/* 表格容器优化 */
+.table-responsive {
+    max-height: 600px;
+    overflow-x: auto;
+    overflow-y: auto;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    background-color: #ffffff;
+}
+
+/* 数值列优化 */
+.pivot-table .text-end {
+    text-align: right !important;
+    font-family: 'Times New Roman', Times, serif;
+    font-weight: 500;
+}
+
+/* 行字段列优化 */
+.pivot-table tbody tr td:first-child {
+    font-weight: 600;
+    color: #495057;
+    background-color: #f8f9fa;
+    border-right: 2px solid #dee2e6;
+    font-family: inherit; /* 保持默认字体 */
+}
+
+/* 表头优化 */
+.pivot-table thead th {
+    background: #f8f9fa !important;
+    color: #495057 !important;
+    border: 1px solid #dee2e6;
+    font-family: inherit; /* 保持默认字体 */
+    font-weight: 600;
+    font-size: 18px;
+}
+
+/* 总计行优化 */
+.pivot-table .table-info {
+    background: #e8f5e8 !important;
+    font-weight: bold;
+    border-top: 2px solid #28a745;
+    font-family: inherit; /* 保持默认字体 */
+    color: #155724;
+}
+
+/* 悬停效果 */
+.pivot-table tbody tr:hover {
+    background-color: #f0f8ff;
+}
+
+
+/* 数值单元格优化 */
+.pivot-table td[class*="text-end"] {
+    background-color: #fefefe;
+    border-left: 1px solid #e9ecef;
+    font-family: 'Times New Roman', Times, serif;
+}
+
+/* 所有数值单元格使用新罗马字体（除了第一列） */
+.pivot-table td:not(:first-child) {
+    font-family: 'Times New Roman', Times, serif;
+}
+
+/* 占比列特殊样式 */
+.pivot-table td:last-child {
+    font-weight: 600;
+    font-family: 'Times New Roman', Times, serif;
+}
+
+
+/* 对角线表头样式 */
+.diagonal-header {
+    position: relative;
+    width: 180px;
+    height: 100px;
+    text-align: center;
+    vertical-align: middle;
+    min-width: 180px;
+    background-color: #ffffff;
+    border: 1px solid #000000;
+}
+
+.diagonal-text {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr;
+    grid-template-areas: 
+        "row-field column-field";
+}
+
+.diagonal-text::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100%25' height='100%25'%3E%3Cline x1='0%25' y1='0%25' x2='100%25' y2='100%25' stroke='%23000000' stroke-width='1'/%3E%3C/svg%3E");
+    z-index: 1;
+}
+
+.row-field {
+    grid-area: row-field;
+    position: relative;
+    z-index: 2;
+    font-size: 16px;
+    font-weight: bold;
+    color: #007bff;
+    background: transparent;
+    padding: 4px 8px;
+    white-space: nowrap;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 2px;
+}
+
+.column-field {
+    grid-area: column-field;
+    position: relative;
+    z-index: 2;
+    font-size: 16px;
+    font-weight: bold;
+    color: #28a745;
+    background: transparent;
+    padding: 4px 8px;
+    white-space: nowrap;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 2px;
+}
+
+.pivot-field {
+    background: #28a745;
+    color: white;
+    padding: 5px 10px;
+    margin: 2px;
+    border-radius: 15px;
+    display: inline-block;
+    font-size: 14px;
+}
+
+.pivot-field .remove {
+    cursor: pointer;
+    margin-left: 8px;
+    font-weight: bold;
+}
+
+</style>
+{% endblock %}
+
+<!-- 按需加载 Plotly，仅在图表页引入 -->
+<script src="{{ url_for('static', filename='js/plotly.min.js') }}"></script>
+<!-- SheetJS for Excel export -->
+<script src="{{ url_for('static', filename='js/xlsx.full.min.js') }}"></script>
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-chart-bar me-2"></i>智能图表分析</h2>
+    <div class="btn-group">
+        <button class="btn btn-custom" onclick="refreshChartsData()">
+            <i class="fas fa-sync-alt me-2"></i>刷新数据
+        </button>
+    </div>
+</div>
+
+<!-- 数据透视表 -->
+<div class="tab-pane fade show active" id="pivot" role="tabpanel">
+                <div class="card">
+        <div class="card-header bg-dark text-white">
+            <h5 class="mb-0"><i class="fas fa-table me-2"></i>拖拽式数据透视表</h5>
+                    </div>
+                    <div class="card-body">
+            <!-- 字段选择区域 -->
+        <div class="row mb-4">
+                <div class="col-md-12">
+                    <h6>可用字段</h6>
+                    <div class="drop-zone p-3" id="availableFields">
+                        <!-- 字段将通过JavaScript动态生成 -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 透视表配置区域 -->
+        <div class="row mb-4">
+                            <div class="col-md-4">
+                    <h6>行字段</h6>
+                    <div class="drop-zone p-3" id="rowFields" style="min-height: 100px;">
+                        <small class="text-muted">拖拽字段到这里作为行</small>
+                            </div>
+                            </div>
+                            <div class="col-md-4">
+                    <h6>列字段</h6>
+                    <div class="drop-zone p-3" id="columnFields" style="min-height: 100px;">
+                        <small class="text-muted">拖拽字段到这里作为列</small>
+                            </div>
+                        </div>
+            <div class="col-md-4">
+                    <h6>值字段</h6>
+                    <div class="drop-zone p-3" id="valueFields" style="min-height: 100px;">
+                        <small class="text-muted">拖拽字段到这里作为值</small>
+                </div>
+            </div>
+        </div>
+        
+            <!-- 操作按钮 -->
+        <div class="row mb-4">
+            <div class="col-md-8">
+                    <button class="btn btn-primary me-2" onclick="generatePivotTable()">
+                        <i class="fas fa-table me-1"></i>生成透视表
+                    </button>
+                    <button class="btn btn-warning me-2" onclick="clearPivotFields()">
+                        <i class="fas fa-trash me-1"></i>清空字段
+                    </button>
+                    <button class="btn btn-info" onclick="exportPivotTable()">
+                        <i class="fas fa-download me-1"></i>导出数据
+                                    </button>
+            </div>
+        </div>
+
+            <!-- 透视表结果区域 -->
+        <div class="row">
+            <div class="col-md-12">
+                <!-- 结果标签页 -->
+                <ul class="nav nav-tabs" id="resultTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="table-tab" data-bs-toggle="tab" data-bs-target="#table-result" type="button" role="tab">
+                            <i class="fas fa-table me-2"></i>透视表
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="chart-tab" data-bs-toggle="tab" data-bs-target="#chart-result" type="button" role="tab">
+                            <i class="fas fa-chart-bar me-2"></i>可视化图表
+                        </button>
+                    </li>
+                </ul>
+                
+                <!-- 标签页内容 -->
+                <div class="tab-content" id="resultTabContent">
+                    <!-- 透视表显示区域 -->
+                    <div class="tab-pane fade show active" id="table-result" role="tabpanel">
+                        <div id="pivotTableResult" class="mb-4">
+                            <div class="text-center text-muted p-5">
+                                <i class="fas fa-table fa-3x mb-3"></i>
+                                <p>请选择字段并生成透视表</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 图表显示区域 -->
+                    <div class="tab-pane fade" id="chart-result" role="tabpanel">
+                        <!-- 图表类型选择 -->
+                        <div class="row mb-3" id="chartTypeSelector" style="display: none;">
+                            <div class="col-12">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div class="btn-group" role="group">
+                                        <button type="button" class="btn btn-outline-primary" onclick="generateChart('bar')">
+                                            <i class="fas fa-chart-bar me-1"></i>柱状图
+                                        </button>
+                                        <button type="button" class="btn btn-outline-primary" onclick="generateChart('line')">
+                                            <i class="fas fa-chart-line me-1"></i>折线图
+                                        </button>
+                                        <button type="button" class="btn btn-outline-primary" onclick="generateChart('pie')">
+                                            <i class="fas fa-chart-pie me-1"></i>饼图
+                                        </button>
+                                    </div>
+                                    <!-- 饼图显示选项 -->
+                                    <div id="pieChartOptions" style="display: none;">
+                                        <div class="d-flex align-items-center">
+                                            <label class="form-label small me-2 mb-0">饼图显示方式：</label>
+                                            <select class="form-select form-select-sm" id="pieDisplayMode" onchange="updatePieChartDisplay()" style="width: auto;">
+                                                <option value="auto">自动选择</option>
+                                                <option value="byRow">按行字段</option>
+                                                <option value="byColumn">按列字段</option>
+                                                <option value="combined">组合显示</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div id="chartContainer" class="mb-4">
+                            <div class="text-center text-muted p-5">
+                                <i class="fas fa-chart-bar fa-3x mb-3"></i>
+                                <p>生成透视表后将自动显示可视化图表</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+                        </div>
+                    </div>
+                </div>
+
+<script>
+let pivotData = [];
+
+// 字段映射配置 - 基于项目总表(ProjectSummary)的筛选字段
+const fieldConfig = {
+    // 基础信息字段（两表共有）
+    'project_name': { name: '项目名称', type: 'dimension' },
+    'project_code': { name: '项目编码（可研）', type: 'dimension' },
+    'construction_unit': { name: '建设单位', type: 'dimension' },
+    'supervisor_dept': { name: '项目主管部门', type: 'dimension' },
+    
+    // 项目基本信息表独有字段
+    'budget_project_name': { name: '概算项目名称', type: 'dimension' },
+    'region': { name: '所属区域', type: 'dimension' },
+    'investment_mode': { name: '投资模式', type: 'dimension' },
+    'project_type': { name: '项目类型', type: 'dimension' },
+    'project_status': { name: '项目状态', type: 'dimension' },
+    
+    // 资金安排表独有字段
+    'funding_source': { name: '资金来源', type: 'dimension' },
+    'funding_nature': { name: '资金性质', type: 'dimension' },
+    'budget_doc_no': { name: '财预文号', type: 'dimension' },
+    'handler': { name: '经办人', type: 'dimension' },
+    'handling_office': { name: '业务处', type: 'dimension' },
+    'arrangement_year': { name: '安排年度', type: 'dimension' },
+    'superior_doc_no': { name: '上级资金文号', type: 'dimension' },
+    
+    // 金额字段（放在最后）
+    'budget_amount': { name: '概算批复金额(万元)', type: 'measure' },
+    'contract_amount': { name: '签订合同金额(万元)', type: 'measure' },
+    'arrangement_amount': { name: '安排金额(万元)', type: 'measure' }
+};
+
+$(document).ready(function() {
+    console.log('页面加载完成，初始化图表模块...');
+    
+    // 检查SheetJS是否加载
+    checkSheetJSLoading();
+    
+    // 检查Plotly是否加载
+    checkPlotlyLoading();
+    
+    loadChartsData();
+    
+    // 延迟初始化透视表，确保DOM完全加载
+    setTimeout(() => {
+        initializePivotTable();
+        console.log('透视表初始化完成');
+    }, 500);
+});
+
+// 检查SheetJS加载状态
+function checkSheetJSLoading() {
+    setTimeout(() => {
+        if (typeof XLSX === 'undefined') {
+            console.log('SheetJS未加载，尝试动态加载...');
+            loadSheetJS().then(() => {
+                console.log('SheetJS动态加载成功');
+            }).catch(() => {
+                console.warn('SheetJS加载失败，将使用CSV导出作为备用方案');
+            });
+        } else {
+            console.log('SheetJS已加载');
+        }
+    }, 1000);
+}
+
+// 检查Plotly加载状态
+function checkPlotlyLoading() {
+    setTimeout(() => {
+        if (typeof Plotly === 'undefined') {
+            console.error('Plotly未加载，图表功能将不可用');
+            // 尝试重新加载
+            loadPlotly().then(() => {
+                console.log('Plotly重新加载成功');
+            }).catch(error => {
+                console.error('Plotly重新加载失败:', error);
+            });
+        } else {
+            console.log('Plotly加载成功');
+        }
+    }, 1000);
+}
+
+function loadChartsData() {
+    // 从项目总表API获取数据
+    fetch('/api/project_summary')
+        .then(response => response.json())
+        .then(data => {
+            console.log('加载项目总表数据:', data.length, '条记录');
+            pivotData = data;
+            generateAllCharts();
+        })
+        .catch(error => {
+            console.error('加载项目总表数据失败:', error);
+            alert('加载数据失败，请刷新页面重试');
+        });
+}
+
+function generateAllCharts() {
+    console.log('开始生成数据透视表...');
+    initializePivotTable();
+    console.log('数据透视表生成完成');
+}
+
+function initializePivotTable() {
+    generateAvailableFields();
+    initializeDragAndDrop();
+}
+
+function generateAvailableFields() {
+    const container = document.getElementById('availableFields');
+    container.innerHTML = '';
+    
+    Object.keys(fieldConfig).forEach(fieldKey => {
+        const field = fieldConfig[fieldKey];
+        const fieldElement = document.createElement('div');
+        fieldElement.className = 'field-item';
+        fieldElement.draggable = true;
+        fieldElement.dataset.fieldKey = fieldKey;
+        fieldElement.dataset.fieldName = field.name;
+        fieldElement.dataset.fieldType = field.type;
+        fieldElement.textContent = field.name;
+        
+        container.appendChild(fieldElement);
+    });
+}
+
+function initializeDragAndDrop() {
+    // 为字段项添加拖拽事件
+    document.querySelectorAll('.field-item').forEach(item => {
+        item.addEventListener('dragstart', function(e) {
+            e.dataTransfer.setData('text/plain', JSON.stringify({
+                fieldKey: this.dataset.fieldKey,
+                fieldName: this.dataset.fieldName,
+                fieldType: this.dataset.fieldType
+            }));
+            this.classList.add('dragging');
+        });
+        
+        item.addEventListener('dragend', function() {
+            this.classList.remove('dragging');
+        });
+    });
+    
+    // 为拖放区域添加事件
+    document.querySelectorAll('.drop-zone').forEach(zone => {
+        zone.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            this.classList.add('drag-over');
+        });
+
+        zone.addEventListener('dragleave', function() {
+                this.classList.remove('drag-over');
+        });
+
+        zone.addEventListener('drop', function(e) {
+            e.preventDefault();
+            this.classList.remove('drag-over');
+            
+            const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+            addFieldToZone(this, data.fieldKey, data.fieldName);
+        });
+    });
+}
+
+function addFieldToZone(zone, fieldKey, fieldName) {
+    // 检查字段是否已存在
+    const existingField = zone.querySelector(`[data-field-key="${fieldKey}"]`);
+    if (existingField) {
+        return;
+    }
+    
+    const fieldElement = document.createElement('div');
+    fieldElement.className = 'pivot-field';
+    fieldElement.dataset.fieldKey = fieldKey;
+    fieldElement.innerHTML = `${fieldName} <span class="remove" onclick="removeFieldFromZone(this)">&times;</span>`;
+    
+    zone.appendChild(fieldElement);
+}
+
+function removeFieldFromZone(removeBtn) {
+    removeBtn.parentElement.remove();
+}
+
+// 清空所有字段
+function clearPivotFields() {
+    document.getElementById('rowFields').innerHTML = '<small class="text-muted">拖拽字段到这里作为行</small>';
+    document.getElementById('columnFields').innerHTML = '<small class="text-muted">拖拽字段到这里作为列</small>';
+    document.getElementById('valueFields').innerHTML = '<small class="text-muted">拖拽字段到这里作为值</small>';
+    
+    // 清空结果区域
+    document.getElementById('pivotTableResult').innerHTML = `
+        <div class="text-center text-muted p-5">
+            <i class="fas fa-table fa-3x mb-3"></i>
+            <p>请选择字段并生成透视表</p>
+        </div>
+    `;
+    
+    // 清空图表区域
+    document.getElementById('chartContainer').innerHTML = `
+        <div class="text-center text-muted p-5">
+            <i class="fas fa-chart-bar fa-3x mb-3"></i>
+            <p>生成透视表后将自动显示可视化图表</p>
+        </div>
+    `;
+    
+    // 隐藏图表类型选择器
+    document.getElementById('chartTypeSelector').style.display = 'none';
+    
+    // 清空透视表结果
+    window.currentPivotResult = null;
+    
+    console.log('已清空所有字段选择');
+}
+
+function generatePivotTable() {
+    const rowFields = getFieldsFromZone('rowFields');
+    const columnFields = getFieldsFromZone('columnFields');
+    const valueFields = getFieldsFromZone('valueFields');
+
+    if (valueFields.length === 0) {
+        alert('请至少选择一个值字段');
+        return;
+    }
+
+    console.log('生成透视表，行字段:', rowFields, '列字段:', columnFields, '值字段:', valueFields);
+    
+    const pivotResult = createPivotTable(pivotData, rowFields, columnFields, valueFields);
+    
+    // 显示透视表
+    displayPivotTable(pivotResult);
+    
+    // 保存透视表结果供图表使用
+    window.currentPivotResult = pivotResult;
+    
+    // 显示图表类型选择器
+    document.getElementById('chartTypeSelector').style.display = 'block';
+    
+    // 自动生成默认图表（柱状图）
+    setTimeout(() => {
+        generateChart('bar');
+    }, 100);
+}
+
+
+function getFieldsFromZone(zoneId) {
+    const zone = document.getElementById(zoneId);
+    return Array.from(zone.querySelectorAll('.pivot-field')).map(field => field.dataset.fieldKey);
+}
+
+function createPivotTable(data, rowFields, columnFields, valueFields) {
+    const result = {};
+    
+    data.forEach(item => {
+        // 生成行键
+        const rowKey = rowFields.map(field => item[field] || '未知').join(' | ');
+        
+        // 生成列键
+        const colKey = columnFields.length > 0 ? 
+            columnFields.map(field => item[field] || '未知').join(' | ') : '总计';
+        
+        if (!result[rowKey]) {
+            result[rowKey] = {};
+        }
+        
+        if (!result[rowKey][colKey]) {
+            result[rowKey][colKey] = {};
+        }
+        
+        // 累加值字段
+            valueFields.forEach(field => {
+            const value = parseFloat(item[field]) || 0;
+            result[rowKey][colKey][field] = (result[rowKey][colKey][field] || 0) + value;
+        });
+    });
+
+    return {
+        data: result,
+        rowFields: rowFields,
+        columnFields: columnFields,
+        valueFields: valueFields
+    };
+}
+
+function displayPivotTable(pivotResult) {
+    const container = document.getElementById('pivotTableResult');
+    
+    let html = '<div class="table-responsive" style="max-height: 600px; overflow: auto;"><table class="table table-bordered table-striped pivot-table">';
+    
+    // 计算总计
+    const totals = {};
+    const allColumns = new Set();
+    
+    // 收集所有列
+    Object.values(pivotResult.data).forEach(row => {
+        Object.keys(row).forEach(col => allColumns.add(col));
+    });
+    
+    // 计算每列的总计
+    allColumns.forEach(col => {
+        totals[col] = {};
+        pivotResult.valueFields.forEach(field => {
+            totals[col][field] = 0;
+        });
+    });
+    
+    // 计算总计
+    Object.values(pivotResult.data).forEach(row => {
+        Object.entries(row).forEach(([col, cellData]) => {
+            pivotResult.valueFields.forEach(field => {
+                totals[col][field] += cellData[field] || 0;
+            });
+        });
+    });
+    
+    // 计算全局总计
+    const globalTotals = {};
+    pivotResult.valueFields.forEach(field => {
+        globalTotals[field] = 0;
+        Object.values(totals).forEach(colTotal => {
+            globalTotals[field] += colTotal[field] || 0;
+        });
+    });
+    
+    // 表头
+    html += '<thead class="table-dark">';
+    
+    // 检查是否需要对角线表头
+    const hasRowFields = pivotResult.rowFields.length > 0;
+    const hasColumnFields = pivotResult.columnFields.length > 0;
+    
+    if (hasRowFields && hasColumnFields) {
+        // 对角线表头格式
+        html += '<tr>';
+        
+        // 第一行第一列：对角线显示行字段和列字段名称
+        const rowFieldNames = pivotResult.rowFields.map(field => 
+            fieldConfig[field] ? fieldConfig[field].name : field
+        ).join(' / ');
+        const columnFieldNames = pivotResult.columnFields.map(field => 
+            fieldConfig[field] ? fieldConfig[field].name : field
+        ).join(' / ');
+        
+        html += `<th class="diagonal-header">
+            <div class="diagonal-text">
+                <span class="row-field">${rowFieldNames}</span>
+                <span class="column-field">${columnFieldNames}</span>
+            </div>
+        </th>`;
+        
+        // 列字段值
+        allColumns.forEach(col => {
+            if (pivotResult.valueFields.length > 1) {
+                // 如果有多个数值字段，显示列名和数值字段
+                const valueFieldNames = pivotResult.valueFields.map(field => 
+                    fieldConfig[field] ? fieldConfig[field].name : field
+                ).join(' / ');
+                html += `<th>${col}<br><small class="text-muted">${valueFieldNames}</small></th>`;
+    } else {
+                // 如果只有一个数值字段，只显示列名
+                html += `<th>${col}</th>`;
+            }
+        });
+        
+        // 添加占比列
+        html += '<th>占比<br><small class="text-muted">占总量百分比</small></th>';
+        html += '</tr>';
+        
+    } else {
+        // 普通表头格式
+        html += '<tr>';
+        if (hasRowFields) {
+            // 显示具体的行字段名称
+            const rowFieldNames = pivotResult.rowFields.map(field => 
+                fieldConfig[field] ? fieldConfig[field].name : field
+            ).join(' / ');
+            html += `<th>${rowFieldNames}</th>`;
+        }
+        
+        allColumns.forEach(col => {
+            if (pivotResult.valueFields.length > 1) {
+                // 如果有多个数值字段，显示列名和数值字段
+                const valueFieldNames = pivotResult.valueFields.map(field => 
+                    fieldConfig[field] ? fieldConfig[field].name : field
+                ).join(' / ');
+                html += `<th>${col}<br><small class="text-muted">${valueFieldNames}</small></th>`;
+            } else {
+                // 如果只有一个数值字段，只显示列名
+                html += `<th>${col}</th>`;
+            }
+        });
+        
+        // 添加占比列
+        html += '<th>占比<br><small class="text-muted">占总量百分比</small></th>';
+        html += '</tr>';
+    }
+    
+    html += '</thead>';
+    
+    // 表体
+    html += '<tbody>';
+    
+    // 添加总计行（第一行）
+    html += '<tr class="table-info" style="background-color: #e3f2fd !important;">';
+    if (pivotResult.rowFields.length > 0) {
+        html += '<td><strong><i class="fas fa-calculator me-1"></i>总计</strong></td>';
+    }
+    
+    allColumns.forEach(col => {
+        const colTotal = totals[col] || {};
+        if (pivotResult.valueFields.length === 1) {
+            // 只有一个数值字段时，直接显示数值
+            const field = pivotResult.valueFields[0];
+            const value = colTotal[field] || 0;
+            html += `<td class="text-end"><strong>${value}</strong></td>`;
+    } else {
+            // 多个数值字段时，显示字段名和数值
+            const cellValue = pivotResult.valueFields.map(field => {
+                const value = colTotal[field] || 0;
+                const fieldName = fieldConfig[field] ? fieldConfig[field].name : field;
+                return `<div class="d-flex justify-content-between"><span>${fieldName}:</span><strong>${value}</strong></div>`;
+            }).join('');
+            
+            html += `<td class="text-end">${cellValue}</td>`;
+        }
+    });
+    
+    // 总计行的占比列
+    html += '<td class="text-end"><strong>100.00%</strong></td>';
+    html += '</tr>';
+    
+    // 数据行
+    Object.entries(pivotResult.data).forEach(([rowKey, rowData]) => {
+        html += '<tr>';
+        if (pivotResult.rowFields.length > 0) {
+            html += `<td><strong>${rowKey}</strong></td>`;
+        }
+        
+        allColumns.forEach(col => {
+            const cellData = rowData[col] || {};
+            if (pivotResult.valueFields.length === 1) {
+                // 只有一个数值字段时，直接显示数值
+                const field = pivotResult.valueFields[0];
+                const value = cellData[field] || 0;
+                html += `<td class="text-end"><strong>${value}</strong></td>`;
+            } else {
+                // 多个数值字段时，显示字段名和数值
+                const cellValue = pivotResult.valueFields.map(field => {
+                    const value = cellData[field] || 0;
+                    const fieldName = fieldConfig[field] ? fieldConfig[field].name : field;
+                    return `<div class="d-flex justify-content-between"><span>${fieldName}:</span><strong>${value}</strong></div>`;
+                }).join('');
+                
+                html += `<td class="text-end">${cellValue}</td>`;
+            }
+        });
+        
+        // 计算该行的占比
+        const rowTotal = pivotResult.valueFields.reduce((sum, field) => {
+            return sum + (Object.values(rowData).reduce((rowSum, cellData) => {
+                return rowSum + (cellData[field] || 0);
+            }, 0));
+        }, 0);
+        
+        const globalTotal = pivotResult.valueFields.reduce((sum, field) => {
+            return sum + (globalTotals[field] || 0);
+        }, 0);
+        
+        const percentage = globalTotal > 0 ? (rowTotal / globalTotal * 100) : 0;
+        
+        html += `<td class="text-end"><strong>${percentage.toFixed(2)}%</strong></td>`;
+        html += '</tr>';
+    });
+    
+    html += '</tbody></table></div>';
+    
+    container.innerHTML = html;
+}
+
+
+function exportPivotTable() {
+    const table = document.querySelector('#pivotTableResult table');
+    if (!table) {
+        alert('请先生成透视表');
+        return;
+    }
+    
+    // 检查SheetJS是否加载
+    if (typeof XLSX === 'undefined') {
+        console.log('SheetJS未加载，尝试重新加载...');
+        // 显示加载提示
+        const loadingMsg = document.createElement('div');
+        loadingMsg.innerHTML = '正在加载Excel导出功能，请稍候...';
+        loadingMsg.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#007bff;color:white;padding:15px 25px;border-radius:5px;z-index:9999;';
+        document.body.appendChild(loadingMsg);
+        
+        // 尝试重新加载SheetJS
+        loadSheetJS().then(() => {
+            document.body.removeChild(loadingMsg);
+            exportPivotTable(); // 递归调用
+        }).catch(() => {
+            document.body.removeChild(loadingMsg);
+            // 如果SheetJS加载失败，使用CSV导出作为备用方案
+            console.log('SheetJS加载失败，使用CSV导出');
+            exportPivotTableAsCSV();
+        });
+        return;
+    }
+    
+    try {
+        // 将表格数据转换为二维数组
+        const data = [];
+        const rows = table.querySelectorAll('tr');
+        
+        rows.forEach(row => {
+            const rowData = [];
+            const cells = row.querySelectorAll('th, td');
+            
+            cells.forEach(cell => {
+                // 处理单元格内容，移除换行符和多余空格
+                let cellText = cell.textContent.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+                
+                // 尝试将数字字符串转换为数字
+                if (cellText && !isNaN(cellText) && cellText !== '') {
+                    const numValue = parseFloat(cellText);
+                    if (!isNaN(numValue)) {
+                        rowData.push(numValue);
+                    } else {
+                        rowData.push(cellText);
+                    }
+                } else {
+                    rowData.push(cellText);
+                }
+            });
+            
+            data.push(rowData);
+        });
+        
+        // 创建工作簿
+        const wb = XLSX.utils.book_new();
+        
+        // 创建工作表
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        
+        // 设置列宽
+        const colWidths = [];
+        for (let i = 0; i < data[0].length; i++) {
+            let maxLength = 10; // 最小宽度
+            for (let j = 0; j < data.length; j++) {
+                if (data[j][i]) {
+                    const cellLength = String(data[j][i]).length;
+                    maxLength = Math.max(maxLength, cellLength);
+                }
+            }
+            colWidths.push({ wch: Math.min(maxLength + 2, 50) }); // 最大宽度50
+        }
+        ws['!cols'] = colWidths;
+        
+        // 设置第一行为标题行样式（加粗）
+        if (data.length > 0) {
+            const range = XLSX.utils.decode_range(ws['!ref']);
+            for (let col = range.s.c; col <= range.e.c; col++) {
+                const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
+                if (!ws[cellAddress]) continue;
+                
+                ws[cellAddress].s = {
+                    font: { bold: true },
+                    alignment: { horizontal: 'center', vertical: 'center' },
+                    fill: { fgColor: { rgb: 'E6F3FF' } }
+                };
+            }
+        }
+        
+        // 添加工作表到工作簿
+        XLSX.utils.book_append_sheet(wb, ws, '数据透视表');
+        
+        // 生成Excel文件并下载
+        const fileName = '数据透视表_' + new Date().toISOString().slice(0, 19).replace(/:/g, '-') + '.xlsx';
+        XLSX.writeFile(wb, fileName);
+        
+        // 显示成功提示
+        alert('Excel文件导出成功！');
+        
+    } catch (error) {
+        console.error('Excel导出失败:', error);
+        alert('Excel导出失败，请重试');
+    }
+}
+
+// 动态加载SheetJS库
+function loadSheetJS() {
+    return new Promise((resolve, reject) => {
+        // 检查是否已经加载
+        if (typeof XLSX !== 'undefined') {
+            resolve();
+            return;
+        }
+        
+        // 创建script标签加载SheetJS
+        const script = document.createElement('script');
+        script.src = '{{ url_for("static", filename="js/xlsx.full.min.js") }}';
+        script.onload = () => {
+            console.log('SheetJS加载成功');
+            resolve();
+        };
+        script.onerror = () => {
+            console.error('SheetJS加载失败');
+            reject();
+        };
+        document.head.appendChild(script);
+    });
+}
+
+// CSV导出备用方案
+function exportPivotTableAsCSV() {
+    const table = document.querySelector('#pivotTableResult table');
+    if (!table) {
+        alert('请先生成透视表');
+        return;
+    }
+    
+    // 简单的CSV导出
+    let csv = '';
+    const rows = table.querySelectorAll('tr');
+    rows.forEach(row => {
+        const cells = row.querySelectorAll('th, td');
+        const rowData = Array.from(cells).map(cell => {
+            let text = cell.textContent.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+            // 如果包含逗号，用引号包围
+            if (text.includes(',')) {
+                text = '"' + text + '"';
+            }
+            return text;
+        });
+        csv += rowData.join(',') + '\n';
+    });
+    
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = '数据透视表_' + new Date().toISOString().slice(0, 19).replace(/:/g, '-') + '.csv';
+    a.click();
+    window.URL.revokeObjectURL(url);
+    
+    alert('CSV文件导出成功！');
+}
+
+function refreshChartsData() {
+    loadChartsData();
+}
+
+// 图表生成功能
+function generateChart(chartType) {
+    if (!window.currentPivotResult) {
+        alert('请先生成透视表');
+        return;
+    }
+    
+    // 检查Plotly是否已加载
+    if (typeof Plotly === 'undefined') {
+        console.error('Plotly未加载，尝试重新加载...');
+        loadPlotly().then(() => {
+            generateChart(chartType);
+        }).catch(error => {
+            console.error('加载Plotly失败:', error);
+            const container = document.getElementById('chartContainer');
+            container.innerHTML = '<div class="alert alert-danger">图表库加载失败，请刷新页面重试</div>';
+        });
+        return;
+    }
+    
+    const container = document.getElementById('chartContainer');
+    container.innerHTML = '<div id="plotlyChart" style="width: 100%; height: 500px;"></div>';
+    
+    const plotlyDiv = document.getElementById('plotlyChart');
+    
+    // 显示/隐藏饼图选项
+    const pieOptions = document.getElementById('pieChartOptions');
+    if (chartType === 'pie') {
+        pieOptions.style.display = 'block';
+    } else {
+        pieOptions.style.display = 'none';
+    }
+    
+    try {
+        let chartData;
+        
+        switch (chartType) {
+            case 'bar':
+                chartData = createBarChart(window.currentPivotResult);
+                break;
+            case 'line':
+                chartData = createLineChart(window.currentPivotResult);
+                break;
+            case 'pie':
+                chartData = createPieChartWithOptions(window.currentPivotResult);
+                break;
+            default:
+                chartData = createBarChart(window.currentPivotResult);
+        }
+        
+        Plotly.newPlot(plotlyDiv, chartData.data, chartData.layout, {responsive: true});
+        
+        // 更新按钮状态
+        updateChartTypeButtons(chartType);
+        
+    } catch (error) {
+        console.error('生成图表失败:', error);
+        container.innerHTML = '<div class="alert alert-danger">生成图表失败: ' + error.message + '</div>';
+    }
+}
+
+// 动态加载Plotly
+function loadPlotly() {
+    return new Promise((resolve, reject) => {
+        if (typeof Plotly !== 'undefined') {
+            resolve();
+            return;
+        }
+        
+        const script = document.createElement('script');
+        script.src = '{{ url_for("static", filename="js/plotly.min.js") }}';
+        script.onload = () => {
+            console.log('Plotly加载成功');
+            resolve();
+        };
+        script.onerror = () => {
+            console.error('Plotly加载失败');
+            reject(new Error('Plotly加载失败'));
+        };
+        document.head.appendChild(script);
+    });
+}
+
+// 更新图表类型按钮状态
+function updateChartTypeButtons(activeType) {
+    document.querySelectorAll('#chartTypeSelector .btn').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.onclick.toString().includes(`'${activeType}'`)) {
+            btn.classList.add('active');
+        }
+    });
+}
+
+// 创建柱状图
+function createBarChart(pivotResult) {
+    const { data, rowFields, columnFields, valueFields } = pivotResult;
+    
+    const traces = [];
+    const allColumns = new Set();
+    
+    // 收集所有列
+    Object.values(data).forEach(row => {
+        Object.keys(row).forEach(col => allColumns.add(col));
+    });
+    
+    const columns = Array.from(allColumns);
+    
+    if (rowFields.length > 0) {
+        // 有行字段的情况
+        const rowKeys = Object.keys(data);
+        
+        columns.forEach((col, colIndex) => {
+            const x = rowKeys;
+            const y = rowKeys.map(rowKey => {
+                const cellData = data[rowKey][col] || {};
+                return valueFields.reduce((sum, field) => sum + (cellData[field] || 0), 0);
+            });
+            
+            traces.push({
+                x: x,
+                y: y,
+                name: col,
+                type: 'bar',
+                marker: {
+                    color: generateColors(1)[colIndex % 32]
+                }
+            });
+        });
+    } else {
+        // 没有行字段的情况，显示列的总计
+        const x = columns;
+        const y = columns.map(col => {
+            const colTotal = Object.values(data).reduce((sum, row) => {
+                const cellData = row[col] || {};
+                return sum + valueFields.reduce((cellSum, field) => cellSum + (cellData[field] || 0), 0);
+            }, 0);
+            return colTotal;
+        });
+        
+        traces.push({
+            x: x,
+            y: y,
+            type: 'bar',
+            marker: { 
+                color: generateColors(1)[0],
+                opacity: 0.8
+            }
+        });
+    }
+    
+    const layout = {
+        title: '数据透视表 - 柱状图',
+        xaxis: { title: rowFields.length > 0 ? rowFields.map(f => fieldConfig[f]?.name || f).join(' / ') : '分类' },
+        yaxis: { title: valueFields.map(f => fieldConfig[f]?.name || f).join(' + ') },
+        barmode: 'group',
+        height: 500,
+        legend: {
+            orientation: 'v',
+            x: 1.02,
+            y: 0.5,
+            xanchor: 'left'
+        },
+        margin: {
+            r: 150
+        }
+    };
+    
+    return { data: traces, layout: layout };
+}
+
+// 创建折线图
+function createLineChart(pivotResult) {
+    const barChart = createBarChart(pivotResult);
+    barChart.data.forEach((trace, index) => {
+        trace.type = 'scatter';
+        trace.mode = 'lines+markers';
+        // 为折线图添加莫兰迪配色
+        if (!trace.marker) trace.marker = {};
+        trace.marker.color = generateColors(1)[index % 32];
+        if (trace.line) {
+            trace.line.color = generateColors(1)[index % 32];
+        }
+    });
+    barChart.layout.title = '数据透视表 - 折线图';
+    barChart.layout.legend = {
+        orientation: 'v',
+        x: 1.02,
+        y: 0.5,
+        xanchor: 'left'
+    };
+    barChart.layout.margin = {
+        r: 150
+    };
+    return barChart;
+}
+
+// 创建饼图
+function createPieChart(pivotResult) {
+    const { data, rowFields, columnFields, valueFields } = pivotResult;
+    
+    // 收集所有列
+    const allColumns = new Set();
+    Object.values(data).forEach(row => {
+        Object.keys(row).forEach(col => allColumns.add(col));
+    });
+    const columns = Array.from(allColumns);
+    
+    const hasRowFields = rowFields.length > 0;
+    const hasColumnFields = columnFields.length > 0;
+    
+    if (!hasRowFields && !hasColumnFields) {
+        // 没有行列字段，显示总值
+        const totalValue = Object.values(data).reduce((sum, row) => {
+            return sum + Object.values(row).reduce((rowSum, cellData) => {
+                return rowSum + valueFields.reduce((cellSum, field) => cellSum + (cellData[field] || 0), 0);
+            }, 0);
+        }, 0);
+        
+        return {
+            data: [{
+                labels: ['总计'],
+                values: [totalValue],
+                type: 'pie',
+                    marker: { 
+                        colors: generateColors(1),
+                        line: { color: '#ffffff', width: 1 }
+                    }
+            }],
+            layout: {
+                title: '数据透视表 - 饼图（总计）',
+                height: 500,
+                showlegend: false,
+                margin: {
+                    r: 150
+                }
+            }
+        };
+    } else if (!hasRowFields && hasColumnFields) {
+        // 只有列字段，按列显示
+        const values = columns.map(col => {
+            return Object.values(data).reduce((sum, row) => {
+                const cellData = row[col] || {};
+                return sum + valueFields.reduce((cellSum, field) => cellSum + (cellData[field] || 0), 0);
+            }, 0);
+        });
+        
+        return {
+            data: [{
+                labels: columns,
+                values: values,
+                type: 'pie',
+                textinfo: 'label+percent+value',
+                textposition: 'outside',
+                hovertemplate: '<b>%{label}</b><br>数值: %{value}<br>占比: %{percent}<extra></extra>',
+                    marker: {
+                        colors: generateColors(columns.length),
+                        line: { color: '#ffffff', width: 1 }
+                    }
+            }],
+            layout: {
+                title: `数据透视表 - 饼图（按${columnFields.map(f => fieldConfig[f]?.name || f).join(' / ')}）`,
+                height: 500,
+                showlegend: true,
+                legend: {
+                    orientation: 'v',
+                    x: 1.02,
+                    y: 0.5,
+                    xanchor: 'left'
+                },
+                margin: {
+                    r: 150
+                }
+            }
+        };
+    } else if (hasRowFields && !hasColumnFields) {
+        // 只有行字段，按行显示
+        const rowKeys = Object.keys(data);
+        const values = rowKeys.map(rowKey => {
+            const rowData = data[rowKey];
+            return Object.values(rowData).reduce((sum, cellData) => {
+                return sum + valueFields.reduce((cellSum, field) => cellSum + (cellData[field] || 0), 0);
+            }, 0);
+        });
+        
+        return {
+            data: [{
+                labels: rowKeys,
+                values: values,
+                type: 'pie',
+                textinfo: 'label+percent+value',
+                textposition: 'outside',
+                hovertemplate: '<b>%{label}</b><br>数值: %{value}<br>占比: %{percent}<extra></extra>',
+                    marker: {
+                        colors: generateColors(rowKeys.length),
+                        line: { color: '#ffffff', width: 1 }
+                    }
+            }],
+            layout: {
+                title: `数据透视表 - 饼图（按${rowFields.map(f => fieldConfig[f]?.name || f).join(' / ')}）`,
+                height: 500,
+                showlegend: true,
+                legend: {
+                    orientation: 'v',
+                    x: 1.02,
+                    y: 0.5,
+                    xanchor: 'left'
+                },
+                margin: {
+                    r: 150
+                }
+            }
+        };
+    } else {
+        // 有行字段和列字段，创建组合饼图
+        return createCombinedPieChart(pivotResult);
+    }
+}
+
+// 创建组合饼图（二维字段）
+function createCombinedPieChart(pivotResult) {
+    const { data, rowFields, columnFields, valueFields } = pivotResult;
+    
+    // 收集所有列
+    const allColumns = new Set();
+    Object.values(data).forEach(row => {
+        Object.keys(row).forEach(col => allColumns.add(col));
+    });
+    const columns = Array.from(allColumns);
+    
+    // 创建多个饼图子图
+    const traces = [];
+    const rowKeys = Object.keys(data);
+    
+    // 获取字段名称映射
+    const rowFieldNames = rowFields.map(f => fieldConfig[f]?.name || f);
+    const columnFieldNames = columnFields.map(f => fieldConfig[f]?.name || f);
+    const valueFieldNames = valueFields.map(f => fieldConfig[f]?.name || f);
+    
+    // 为每个列字段值创建一个饼图
+    columns.forEach((col, colIndex) => {
+        const values = rowKeys.map(rowKey => {
+            const cellData = data[rowKey][col] || {};
+            return valueFields.reduce((sum, field) => sum + (cellData[field] || 0), 0);
+        });
+        
+        // 过滤掉值为0的项
+        const filteredData = rowKeys.map((rowKey, index) => ({
+            label: rowKey,
+            value: values[index]
+        })).filter(item => item.value > 0);
+        
+        if (filteredData.length > 0) {
+            // 计算该列的总值
+            const colTotal = filteredData.reduce((sum, item) => sum + item.value, 0);
+            
+            traces.push({
+                labels: filteredData.map(item => item.label),
+                values: filteredData.map(item => item.value),
+                type: 'pie',
+                name: `${col} (总计: ${colTotal})`,
+                domain: {
+                    row: Math.floor(colIndex / 2),
+                    column: colIndex % 2
+                },
+                textinfo: 'label+percent+value',
+                textposition: 'outside',
+                hovertemplate: 
+                    `<b>${columnFieldNames.join(' / ')}: ${col}</b><br>` +
+                    `${rowFieldNames.join(' / ')}: %{label}<br>` +
+                    `${valueFieldNames.join(' + ')}: %{value}<br>` +
+                    `占比: %{percent}<br>` +
+                    `该列总计: ${colTotal}<extra></extra>`,
+                marker: {
+                    colors: generateColors(filteredData.length)
+                }
+            });
+        }
+    });
+    
+    // 计算子图布局
+    const numCols = Math.min(2, columns.length);
+    const numRows = Math.ceil(columns.length / numCols);
+    
+    // 计算总体统计信息
+    const totalValue = Object.values(data).reduce((sum, row) => {
+        return sum + Object.values(row).reduce((rowSum, cellData) => {
+            return rowSum + valueFields.reduce((cellSum, field) => cellSum + (cellData[field] || 0), 0);
+        }, 0);
+    }, 0);
+    
+    return {
+        data: traces,
+        layout: {
+            title: {
+                text: `数据透视表 - 组合饼图<br>` +
+                      `<span style="font-size: 14px; color: #666;">` +
+                      `行字段: ${rowFieldNames.join(' / ')} | ` +
+                      `列字段: ${columnFieldNames.join(' / ')} | ` +
+                      `值字段: ${valueFieldNames.join(' + ')} | ` +
+                      `总计: ${totalValue}</span>`,
+                x: 0.5,
+                xanchor: 'center'
+            },
+            height: Math.max(400, numRows * 300),
+            grid: {
+                rows: numRows,
+                columns: numCols,
+                pattern: 'independent'
+            },
+            showlegend: true,
+            legend: {
+                orientation: 'v',
+                x: 1.02,
+                y: 0.5,
+                xanchor: 'left',
+                title: {
+                    text: '图例说明',
+                    font: { size: 12, color: '#333' }
+                }
+            },
+            margin: {
+                r: 150
+            },
+            annotations: [
+                {
+                    text: `数据说明：<br>` +
+                          `• 每个饼图代表一个${columnFieldNames.join(' / ')}值<br>` +
+                          `• 饼图扇形代表${rowFieldNames.join(' / ')}的分布<br>` +
+                          `• 数值为${valueFieldNames.join(' + ')}的汇总<br>` +
+                          `• 总计: ${totalValue}`,
+                    x: 0.02,
+                    y: 0.98,
+                    xref: 'paper',
+                    yref: 'paper',
+                    showarrow: false,
+                    align: 'left',
+                    bgcolor: 'rgba(255, 255, 255, 0.8)',
+                    bordercolor: '#ccc',
+                    borderwidth: 1,
+                    font: { size: 10, color: '#333' }
+                }
+            ]
+        }
+    };
+}
+
+// 根据选项创建饼图
+function createPieChartWithOptions(pivotResult) {
+    const displayMode = document.getElementById('pieDisplayMode').value;
+    const { rowFields, columnFields } = pivotResult;
+    
+    if (displayMode === 'auto') {
+        return createPieChart(pivotResult);
+    } else if (displayMode === 'byRow' && rowFields.length > 0) {
+        return createPieChartByRow(pivotResult);
+    } else if (displayMode === 'byColumn' && columnFields.length > 0) {
+        return createPieChartByColumn(pivotResult);
+    } else if (displayMode === 'combined' && rowFields.length > 0 && columnFields.length > 0) {
+        return createCombinedPieChart(pivotResult);
+    } else {
+        // 回退到自动模式
+        return createPieChart(pivotResult);
+    }
+}
+
+// 按行字段创建饼图
+function createPieChartByRow(pivotResult) {
+    const { data, rowFields, valueFields } = pivotResult;
+    
+    const rowKeys = Object.keys(data);
+    const values = rowKeys.map(rowKey => {
+        const rowData = data[rowKey];
+        return Object.values(rowData).reduce((sum, cellData) => {
+            return sum + valueFields.reduce((cellSum, field) => cellSum + (cellData[field] || 0), 0);
+        }, 0);
+    });
+    
+    // 获取字段名称映射
+    const rowFieldNames = rowFields.map(f => fieldConfig[f]?.name || f);
+    const valueFieldNames = valueFields.map(f => fieldConfig[f]?.name || f);
+    
+    // 计算总计
+    const totalValue = values.reduce((sum, val) => sum + val, 0);
+    
+    return {
+        data: [{
+            labels: rowKeys,
+            values: values,
+            type: 'pie',
+            textinfo: 'label+percent+value',
+            textposition: 'outside',
+            hovertemplate: 
+                `<b>${rowFieldNames.join(' / ')}: %{label}</b><br>` +
+                `${valueFieldNames.join(' + ')}: %{value}<br>` +
+                `占比: %{percent}<br>` +
+                `总计: ${totalValue}<extra></extra>`,
+            marker: {
+                colors: generateColors(rowKeys.length)
+            }
+        }],
+        layout: {
+            title: {
+                text: `数据透视表 - 饼图（按${rowFieldNames.join(' / ')}）<br>` +
+                      `<span style="font-size: 14px; color: #666;">` +
+                      `值字段: ${valueFieldNames.join(' + ')} | 总计: ${totalValue}</span>`,
+                x: 0.5,
+                xanchor: 'center'
+            },
+            height: 500,
+            showlegend: true,
+            legend: {
+                orientation: 'v',
+                x: 1.05,
+                y: 0.5,
+                title: {
+                    text: '图例说明',
+                    font: { size: 12, color: '#333' }
+                }
+            },
+            annotations: [
+                {
+                    text: `数据说明：<br>` +
+                          `• 每个扇形代表一个${rowFieldNames.join(' / ')}值<br>` +
+                          `• 数值为${valueFieldNames.join(' + ')}的汇总<br>` +
+                          `• 总计: ${totalValue}`,
+                    x: 0.02,
+                    y: 0.98,
+                    xref: 'paper',
+                    yref: 'paper',
+                    showarrow: false,
+                    align: 'left',
+                    bgcolor: 'rgba(255, 255, 255, 0.8)',
+                    bordercolor: '#ccc',
+                    borderwidth: 1,
+                    font: { size: 10, color: '#333' }
+                }
+            ]
+        }
+    };
+}
+
+// 按列字段创建饼图
+function createPieChartByColumn(pivotResult) {
+    const { data, columnFields, valueFields } = pivotResult;
+    
+    // 收集所有列
+    const allColumns = new Set();
+    Object.values(data).forEach(row => {
+        Object.keys(row).forEach(col => allColumns.add(col));
+    });
+    const columns = Array.from(allColumns);
+    
+    const values = columns.map(col => {
+        return Object.values(data).reduce((sum, row) => {
+            const cellData = row[col] || {};
+            return sum + valueFields.reduce((cellSum, field) => cellSum + (cellData[field] || 0), 0);
+        }, 0);
+    });
+    
+    // 获取字段名称映射
+    const columnFieldNames = columnFields.map(f => fieldConfig[f]?.name || f);
+    const valueFieldNames = valueFields.map(f => fieldConfig[f]?.name || f);
+    
+    // 计算总计
+    const totalValue = values.reduce((sum, val) => sum + val, 0);
+    
+    return {
+        data: [{
+            labels: columns,
+            values: values,
+            type: 'pie',
+            textinfo: 'label+percent+value',
+            textposition: 'outside',
+            hovertemplate: 
+                `<b>${columnFieldNames.join(' / ')}: %{label}</b><br>` +
+                `${valueFieldNames.join(' + ')}: %{value}<br>` +
+                `占比: %{percent}<br>` +
+                `总计: ${totalValue}<extra></extra>`,
+            marker: {
+                colors: generateColors(columns.length)
+            }
+        }],
+        layout: {
+            title: {
+                text: `数据透视表 - 饼图（按${columnFieldNames.join(' / ')}）<br>` +
+                      `<span style="font-size: 14px; color: #666;">` +
+                      `值字段: ${valueFieldNames.join(' + ')} | 总计: ${totalValue}</span>`,
+                x: 0.5,
+                xanchor: 'center'
+            },
+            height: 500,
+            showlegend: true,
+            legend: {
+                orientation: 'v',
+                x: 1.05,
+                y: 0.5,
+                title: {
+                    text: '图例说明',
+                    font: { size: 12, color: '#333' }
+                }
+            },
+            annotations: [
+                {
+                    text: `数据说明：<br>` +
+                          `• 每个扇形代表一个${columnFieldNames.join(' / ')}值<br>` +
+                          `• 数值为${valueFieldNames.join(' + ')}的汇总<br>` +
+                          `• 总计: ${totalValue}`,
+                    x: 0.02,
+                    y: 0.98,
+                    xref: 'paper',
+                    yref: 'paper',
+                    showarrow: false,
+                    align: 'left',
+                    bgcolor: 'rgba(255, 255, 255, 0.8)',
+                    bordercolor: '#ccc',
+                    borderwidth: 1,
+                    font: { size: 10, color: '#333' }
+                }
+            ]
+        }
+    };
+}
+
+// 生成颜色数组
+function generateColors(count) {
+    const colors = [
+        '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
+        '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf',
+        '#aec7e8', '#ffbb78', '#98df8a', '#ff9896', '#c5b0d5',
+        '#c49c94', '#f7b6d3', '#c7c7c7', '#dbdb8d', '#9edae5'
+    ];
+    
+    const result = [];
+    for (let i = 0; i < count; i++) {
+        result.push(colors[i % colors.length]);
+    }
+    return result;
+}
+
+// 更新饼图显示
+function updatePieChartDisplay() {
+    if (document.getElementById('chart-tab').classList.contains('active')) {
+        generateChart('pie');
+    }
+}
+
+</script>
+{% endblock %}
