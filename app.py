@@ -743,43 +743,74 @@ def migrate_to_summary():
         # 删除现有的总表数据
         ProjectSummary.query.delete()
         
-        # 查询合并数据
+        # 查询合并数据 - 使用LEFT JOIN显示所有资金安排项目
         query = db.session.query(
             FundingArrangement,
             ProjectInfo
-        ).join(
+        ).outerjoin(
             ProjectInfo, 
             FundingArrangement.project_code == ProjectInfo.project_code
         ).all()
         
         migrated_count = 0
         for funding, project in query:
-            summary = ProjectSummary(
-                project_name=funding.project_name,
-                project_code=funding.project_code,
-                construction_unit=funding.construction_unit,
-                supervisor_dept=funding.supervisor_dept,
-                budget_code=project.budget_code,
-                budget_project_name=project.budget_project_name,
-                region=project.region,
-                investment_mode=project.investment_mode,
-                project_type=project.project_type,
-                approval_date=project.approval_date,
-                budget_amount=project.budget_amount,
-                contract_amount=project.contract_amount,
-                start_date=project.start_date,
-                end_date=project.end_date,
-                project_status=project.project_status,
-                arrangement_amount=funding.arrangement_amount,
-                funding_source=funding.funding_source,
-                funding_nature=funding.funding_nature,
-                budget_doc_no=funding.budget_doc_no,
-                handler=funding.handler,
-                handling_office=funding.handling_office,
-                arrangement_year=funding.arrangement_year,
-                superior_doc_no=funding.superior_doc_no,
-                remarks=funding.remarks
-            )
+            # 处理没有项目基本信息的情况
+            if project is None:
+                # 使用默认值或资金安排表中的信息
+                summary = ProjectSummary(
+                    project_name=funding.project_name,
+                    project_code=funding.project_code,
+                    construction_unit=funding.construction_unit,
+                    supervisor_dept=funding.supervisor_dept,
+                    budget_code=f"BUD{funding.project_code}",
+                    budget_project_name=funding.project_name,
+                    region="未知区域",
+                    investment_mode="未知模式",
+                    project_type="未知类型",
+                    approval_date=None,
+                    budget_amount=None,
+                    contract_amount=None,
+                    start_date=None,
+                    end_date=None,
+                    project_status="未知状态",
+                    arrangement_amount=funding.arrangement_amount,
+                    funding_source=funding.funding_source,
+                    funding_nature=funding.funding_nature,
+                    budget_doc_no=funding.budget_doc_no,
+                    handler=funding.handler,
+                    handling_office=funding.handling_office,
+                    arrangement_year=funding.arrangement_year,
+                    superior_doc_no=funding.superior_doc_no,
+                    remarks=f"只有资金安排记录 - {funding.remarks or ''}"
+                )
+            else:
+                # 正常情况，两个表都有数据
+                summary = ProjectSummary(
+                    project_name=funding.project_name,
+                    project_code=funding.project_code,
+                    construction_unit=funding.construction_unit,
+                    supervisor_dept=funding.supervisor_dept,
+                    budget_code=project.budget_code,
+                    budget_project_name=project.budget_project_name,
+                    region=project.region,
+                    investment_mode=project.investment_mode,
+                    project_type=project.project_type,
+                    approval_date=project.approval_date,
+                    budget_amount=project.budget_amount,
+                    contract_amount=project.contract_amount,
+                    start_date=project.start_date,
+                    end_date=project.end_date,
+                    project_status=project.project_status,
+                    arrangement_amount=funding.arrangement_amount,
+                    funding_source=funding.funding_source,
+                    funding_nature=funding.funding_nature,
+                    budget_doc_no=funding.budget_doc_no,
+                    handler=funding.handler,
+                    handling_office=funding.handling_office,
+                    arrangement_year=funding.arrangement_year,
+                    superior_doc_no=funding.superior_doc_no,
+                    remarks=funding.remarks
+                )
             db.session.add(summary)
             migrated_count += 1
         
@@ -1809,11 +1840,11 @@ def sync_project_summary():
         # 删除现有的总表数据
         ProjectSummary.query.delete()
         
-        # 查询合并数据
+        # 查询合并数据 - 使用LEFT JOIN显示所有资金安排项目
         query = db.session.query(
             FundingArrangement,
             ProjectInfo
-        ).join(
+        ).outerjoin(
             ProjectInfo, 
             FundingArrangement.project_code == ProjectInfo.project_code
         ).all()
@@ -2512,4 +2543,12 @@ def get_dashboard_stats():
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-    app.run(host='0.0.0.0', port=8080, debug=True, use_reloader=False)
+    print("🚀 AI城建系统正在启动...")
+    print("📡 服务器配置:")
+    print("   - 主机: 0.0.0.0 (所有接口)")
+    print("   - 端口: 5000")
+    print("🌐 访问地址:")
+    print("   - http://localhost:5000")
+    print("   - http://127.0.0.1:5000")
+    print("✅ 系统启动完成，请使用上述地址访问")
+    app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False, threaded=True)
